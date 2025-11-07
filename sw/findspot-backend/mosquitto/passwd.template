@@ -1,0 +1,26 @@
+# Mosquitto Password File Setup Script
+# 
+# This file will be generated using mosquitto_passwd utility
+# Run the following commands on Raspberry Pi:
+#
+# 1. Create password file for ESP32 device:
+#    mosquitto_passwd -c passwd esp32_device
+#    Enter password: secure_device_password
+#
+# 2. Add password for Flask backend:
+#    mosquitto_passwd passwd flask_backend
+#    Enter password: backend_secure_password
+#
+# 3. (Optional) Add password for web/mobile clients:
+#    mosquitto_passwd passwd web_client
+#    Enter password: client_password
+#
+# The file format will be:
+# username:hashed_password
+#
+# Example (after running mosquitto_passwd):
+# esp32_device:$7$101$...hashed...
+# flask_backend:$7$101$...hashed...
+
+# For testing only - DELETE THIS IN PRODUCTION
+# Use mosquitto_passwd to create proper hashed passwords

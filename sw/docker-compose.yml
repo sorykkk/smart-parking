@@ -1,39 +1,99 @@
-version: "3.9"
+version: '3.8'
+
+# FindSpot Smart Parking System
+# Optimized for Raspberry Pi 5 deployment
 
 services:
-  mqtt:
-    image: eclipse-mosquitto:latest
-    container_name: mqtt
+  # Backend API
+  flask-backend:
+    build:
+      context: ./findspot-backend/flask
+      dockerfile: Dockerfile
+    container_name: findspot-backend
     restart: unless-stopped
-    volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./mosquitto/passwd:/mosquitto/config/passwd
-    ports:
-      - "1883:1883"  # MQTT
-      # - "9001:9001"  # WebSocket MQTT
-
-  flask-api:
-    build: ./flask
-    container_name: flask-api
-    restart: unless-stopped
-    environment:
-      - MQTT_BROKER=mqtt
-      - MQTT_USER=iotuser
-      - MQTT_PASSWORD=iotpass
-      # - MQTT_PORT=1883
-      # - DATABASE_URL=sqlite:///data/database.db
-    depends_on:
-      - mqtt
     ports:
       - "5000:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=sqlite:///data/findspot.db
+      - MQTT_BROKER=mqtt-broker
+      - MQTT_PORT=1883
+      - MQTT_USER=flask_backend
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - FLASK_ENV=production
+      - HOST=0.0.0.0
+      - PORT=5000
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
     volumes:
-      - ./flask/data:/app/data # persist SQLite file
+      - ./findspot-backend/flask:/app
+      - backend-data:/app/data
+    depends_on:
+      - mqtt-broker
+    networks:
+      - app-network
+    # Raspberry Pi 5 resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
-  svelte-ui:
-    build: ./svelte
-    container_name: svelte-ui
+  # MQTT Broker
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: findspot-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./findspot-backend/mosquitto/mosquitto-new.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+      - mqtt-logs:/mosquitto/log
+    networks:
+      - app-network
+    # Raspberry Pi 5 resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  # Frontend
+  frontend:
+    build:
+      context: ./findspot-frontend
+      dockerfile: Dockerfile
+    container_name: findspot-frontend
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./findspot-frontend/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - flask-api
+      - flask-backend
+    networks:
+      - app-network
+    # Raspberry Pi 5 resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+volumes:
+  backend-data:
+    driver: local
+  mqtt-data:
+    driver: local
+  mqtt-logs:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

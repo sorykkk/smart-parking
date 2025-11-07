@@ -4,18 +4,22 @@
 #include "esp_camera.h"
 #include <Arduino.h>
 #include <base64.h>  // Built-in Arduino Base64 helper
+#include "SensorInterface.h"
 
-class CameraDevice {
+class CameraDevice : ISensor {
 private:
-  String name;
   framesize_t frameSize;
   int jpegQuality;
   size_t lastImageSize = 0;
   String lastImageBase64;  // optional preview
+  char isoTime[30];
 
 public:
-  CameraDevice(const String& camName, framesize_t size = FRAMESIZE_QVGA, int quality = 12)
-      : name(camName), frameSize(size), jpegQuality(quality) {}
+  CameraDevice(const Device& device, const String& sensorTech, int sensorIndex, framesize_t size = FRAMESIZE_QVGA, int quality = 12)
+      : type("camera"), technology(sensorTech), index(sensorIndex), frameSize(size), jpegQuality(quality) {
+        //camera_1_esp32_1
+        name = technology + "_" + String(index) + "_" + device.getName() + "_" + device.getId();
+  }
 
   bool begin() {
     camera_config_t config;
@@ -58,21 +62,51 @@ public:
     }
 
     esp_camera_fb_return(fb);
+
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      strftime(isoTime, sizeof(isoTime), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
+    } else {
+      strcpy(isoTime, "1970-01-01T00:00:00Z"); // fallback
+    }
     return fb;
   }
 
-  String getName() const { return name; }
+  String getName() const override { 
+    return name; 
+  }
 
-  String toJSON(bool includeImage = false) const {
-    String json = "{\"name\":\"" + name + "\",";
-    json += "\"resolution\":\"" + frameSizeToString(frameSize) + "\",";
-    json += "\"jpeg_quality\":" + String(jpegQuality) + ",";
-    json += "\"last_image_size\":" + String(lastImageSize);
-    if (includeImage && lastImageBase64.length() > 0) {
-      json += ",\"image_base64\":\"" + lastImageBase64 + "\"";
-    }
-    json += "}";
-    return json;
+  String getType() const override {
+    return type;
+  }
+
+  int getIndex() const override {
+    return index;
+  }
+
+  String getTechnology() const override {
+    return technology;
+  }
+
+  bool checkState() override {
+    // do nothing yet
+  }
+
+  String toJson() const {
+    DynamicJsonDocument doc(4096);
+    doc["name"] = name;
+    doc["index"] = index;
+    doc["type"] = type;
+    doc["technology"] = technology;
+    doc["resolution"] = frameSizeToString(frameSize);
+    doc["jpeg_quality"] = jpegQuality;
+    doc["image_size"] = lastImageSize;
+    doc["image_base64"] = lastImageBase64;
+    doc["last_updated"] = isoTime;
+
+    String payload;
+    serializeJson(doc, payload);
+    return payload;
   }
 
 private:
