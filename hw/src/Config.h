@@ -12,7 +12,7 @@
 // TODO: for now it's ok to be hardcoded
 // IMPORTANT: Update this IP address to match your Raspberry Pi 5 IP address
 // This should match the PI_IP_ADDRESS in sw/.env
-#define MQTT_BROKER "192.168.1.100"
+#define MQTT_BROKER "192.168.1.103"
 #define MQTT_PORT 1883
 #define MQTT_DEVICE_PREFIX "esp32_dev"
 
