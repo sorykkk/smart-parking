@@ -1,5 +1,3 @@
-version: '3.8'
-
 # FindSpot Smart Parking System
 # Optimized for Raspberry Pi 5 deployment
 
@@ -11,15 +9,17 @@ services:
       dockerfile: Dockerfile
     container_name: findspot-backend
     restart: unless-stopped
+    env_file:
+      - ./findspot-backend/.env
     ports:
       - "5000:5000"
     environment:
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY
       - DATABASE_URL=sqlite:///data/findspot.db
       - MQTT_BROKER=mqtt-broker
       - MQTT_PORT=1883
       - MQTT_USER=flask_backend
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_PASSWORD
       - FLASK_ENV=production
       - HOST=0.0.0.0
       - PORT=5000
