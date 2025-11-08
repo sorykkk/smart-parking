@@ -1,52 +1,61 @@
 # Environment Configuration Strategy
 
-This project uses a **dual environment setup** to support both Docker and local development:
+This project uses a **simplified single environment approach** to eliminate confusion and duplicate variables.
 
-## 🐳 **When Using Docker Compose**
+## 🎯 **Single .env File Approach**
 
 ```bash
-# 1. Create root .env file
+# Create and edit the main .env file
 cp .env.example .env
+nano .env
+```
 
-# 2. Edit .env with your values
-# 3. Run with Docker
+**All configurations use `sw/.env`:**
+- Docker Compose uses these variables via `${VARIABLE}` substitution
+- Local development can also use Docker for consistency
+- No duplicate or conflicting environment files
+
+## � **Production Deployment (Docker)**
+
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env with your production values
+
+# 2. Deploy with Docker
+docker-compose up -d
+```
+
+## 💻 **Local Development Options**
+
+### Option 1: Use Docker (Recommended)
+```bash
+# Same as production - use Docker for consistency
 docker-compose up
 ```
 
-**Docker uses these variables:**
-- `SECRET_KEY` - Flask security
-- `MQTT_BACKEND_PASSWORD` - MQTT authentication
-- Container-specific overrides (MQTT_BROKER=mosquitto, etc.)
-
-## 💻 **When Running Locally (Development)**
-
+### Option 2: Direct Flask Development
 ```bash
-# 1. Create backend .env file
-cp findspot-backend/.env.example findspot-backend/.env
-
-# 2. Edit backend .env with local values (MQTT_BROKER=localhost, etc.)
-# 3. Run Flask directly
+# Override MQTT_BROKER for local development
+export MQTT_BROKER=localhost
 cd findspot-backend/flask
 python app.py
 ```
 
-**Local development uses:**
-- All Flask-specific variables from `findspot-backend/.env`
-- Different MQTT_BROKER (localhost vs mosquitto container)
-
 ## ⚖️ **Variable Priority**
 
-1. **Docker environment variables** (highest priority)
-2. **findspot-backend/.env** file
-3. **Default values** in code (lowest priority)
+1. **Environment variables** (export/set commands)
+2. **Docker environment section** (from .env file)
+3. **Default values** in Python code
 
-## 🎯 **Key Differences by Environment**
+## 🎯 **Benefits of Single .env Approach**
 
-| Variable | Docker Value | Local Dev Value | Why Different? |
-|----------|-------------|----------------|----------------|
-| `MQTT_BROKER` | `mosquitto` | `localhost` | Container name vs local service |
-| `SECRET_KEY` | From root `.env` | From backend `.env` | Shared vs isolated |
-| `CORS_ORIGINS` | `*` | `*` | Same for development |
+| Benefit | Description |
+|---------|-------------|
+| **No Duplication** | Single source of truth for all variables |
+| **No Confusion** | Only one file to edit |
+| **Consistent Values** | Same variables for Docker and local dev |
+| **Simple Deployment** | One command: `docker-compose up` |
 
 ## 🚀 **Quick Start**
 
