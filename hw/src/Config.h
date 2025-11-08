@@ -18,7 +18,6 @@
 
 // Backend MQTT credentials for initial registration
 #define BACKEND_MQTT_USER "flask_backend"
-#define BACKEND_MQTT_PASS "backend_password"
 
 // MQTT Topics
 #define MQTT_TOPIC_SENSORS "sensors/"
