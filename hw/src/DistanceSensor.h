@@ -8,6 +8,8 @@
 
 #define INVALID_DISTANCE -1
 
+namespace FindSpot {
+
 class DistanceSensor : public ISensor {
 private:
   int trigPin;
@@ -97,5 +99,6 @@ public:
     return payload;
   }
 };
+}
 
 #endif

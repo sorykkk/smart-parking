@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include "Config.h"
 
+namespace FindSpot {
 class WiFiManager {
 public:
   void connect() {
@@ -21,5 +22,6 @@ public:
     return WiFi.status() == WL_CONNECTED;
   }
 };
+}
 
 #endif

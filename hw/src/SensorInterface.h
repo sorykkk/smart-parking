@@ -2,7 +2,7 @@
 #define SENSOR_H
 
 #include <Arduino.h>
-
+namespace FindSpot {
 class ISensor {
 protected:
     String name;
@@ -19,5 +19,6 @@ public:
     virtual bool checkState() = 0;
     virtual void begin() = 0;
 };
+}
 
 #endif

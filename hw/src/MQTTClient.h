@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "Device.h"
 
+namespace FindSpot {
 class MQTTClient {
 private:
   WiFiClient wifiClient;
@@ -31,7 +32,7 @@ private:
     String cleanMac = macAddress;
     cleanMac.replace(":", "");
     cleanMac.toLowerCase();
-    return MQTT_DEVICE_PREFIX + "_" + cleanMac;  // Use configurable prefix
+    return String(MQTT_DEVICE_PREFIX) + "_" + cleanMac;  // Use configurable prefix
   }
 
   String generateMQTTPassword() {
@@ -83,7 +84,7 @@ private:
       // Use backend credentials for initial registration
       mqttUser = BACKEND_MQTT_USER;
       mqttPassword = BACKEND_MQTT_PASS;
-      clientId = MQTT_DEVICE_PREFIX + "_reg_" + macAddress;
+      clientId = String(MQTT_DEVICE_PREFIX) + "_reg_" + macAddress;
       Serial.println("Using backend credentials for registration");
     } else {
       // Use device credentials for normal operation
@@ -366,4 +367,7 @@ public:
   int getDeviceId() {
     return deviceId;
   }
+};
 }
+
+#endif

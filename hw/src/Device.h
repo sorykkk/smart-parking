@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include "Config.h"  // For MQTT_DEVICE_PREFIX
 
+namespace FindSpot {
 class Device {
 private:
     int id = -1;
@@ -68,5 +69,6 @@ public:
         return payload;
     }
 };
+}
 
 #endif

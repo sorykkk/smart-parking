@@ -7,6 +7,7 @@
 #include "SensorInterface.h"
 #include <ArduinoJson.h>
 
+namespace FindSpot {
 class CameraDevice : ISensor {
 private:
   framesize_t frameSize;
@@ -125,5 +126,6 @@ private:
     }
   }
 };
+}
 
 #endif

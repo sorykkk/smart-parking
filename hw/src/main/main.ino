@@ -7,6 +7,8 @@
 #include "../MQTTClient.h"
 #include "time.h"
 
+using namespace FindSpot;
+
 WiFiManager wifi;
 MQTTClient mqttClient;  // No device ID needed, will be retrieved
 Device *esp32device = nullptr; // Global pointer to device
