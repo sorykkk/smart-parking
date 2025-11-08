@@ -1,6 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// include for:
+//  * MQTT_PASS
+//  * WIFI_SSID
+//  * WIFI_PASS 
 #include "env.h"
 
 // MQTT Broker settings (Raspberry Pi server)

@@ -17,6 +17,7 @@ public:
     virtual String getTechnology() const = 0;
     virtual int getIndex() const = 0;
     virtual bool checkState() = 0;
+    virtual void begin() = 0;
 };
 
 #endif

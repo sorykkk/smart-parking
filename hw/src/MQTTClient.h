@@ -11,7 +11,7 @@ class MQTTClient {
 private:
   WiFiClient wifiClient;
   PubSubClient mqttClient;
-  String deviceId = "";
+  int deviceId = -1;
   String macAddress;
   unsigned long lastReconnectAttempt;
   static const unsigned long RECONNECT_INTERVAL = 5000; // 5 seconds
@@ -27,13 +27,13 @@ private:
     Serial.print("Attempting MQTT connection...");
 
     // Use MAC address as client ID before registration, device ID after
-    String clientId = deviceId.length() > 0 ? deviceId : Device::getMacAddress();
+    String clientId = deviceId != -1 ? String(deviceId) : Device::getMacAddress();
     
     // Build MQTT username: prefix + device_id (or MAC if not registered yet)
     String mqttUser = String(MQTT_USER_PREFIX) + "_" + clientId;
     
     // Attempt to connect with username and password
-    if (mqttClient.connect(clientId.c_str(), mqttUser.c_str(), MQTT_PASSWORD)) {
+    if (mqttClient.connect(clientId.c_str(), mqttUser.c_str(), MQTT_PASS)) {
       Serial.println("connected");
       Serial.println("MQTT User: " + mqttUser);
       
@@ -61,6 +61,10 @@ public:
     mqttClient.setBufferSize(4096); // Larger buffer for registration payloads
     Serial.println("MQTT Client initialized");
     Serial.println("MAC Address: " + macAddress);
+  }
+
+  void setCallback(MQTT_CALLBACK_SIGNATURE) {
+    mqttClient.setCallback(callback);
   }
 
   void loop() {
@@ -203,22 +207,22 @@ public:
         // This is device registration response
         deviceRegistrationComplete = true;
         if(doc.containsKey("device_id")) {
-          deviceId = doc["device_id"].as<String>();
-          Serial.println("Device ID received: " + deviceId);
+          deviceId = doc["device_id"].as<int>();
+          Serial.println("Device ID received: " + String(deviceId));
         }
       } else {
         // This is sensors registration response  
         sensorsRegistrationComplete = true;
         int distance_sensors_reg = doc["sensors_registered"].as<int>();
         int camera_sensors_reg = doc["cameras_registered"].as<int>(); 
-        Serial.println("Sensors registration confirmed.\nRegistered: " + (distance_sensors_reg + camera_sensors_reg) + " total sensors.\n");
+        String total = String(distance_sensors_reg + camera_sensors_reg);
+        Serial.println("Sensors registration confirmed.\nRegistered: " + total + " total sensors.\n");
       }
       waitingForResponse = false;
       return true;
     }
     else if(status == "error") {
       String message = doc["message"].as<String>();
-
       Serial.println("[Backend error]: " + message);
     }
 
@@ -239,7 +243,7 @@ public:
       return false;
     }
 
-    String topic = String(MQTT_TOPIC_SENSORS) + deviceId + "/data/" + doc["index"].as<String>();
+    String topic = String(MQTT_TOPIC_SENSORS) + String(deviceId) + "/data/" + doc["index"].as<String>();
     return publish(topic, sensorJson);
   }
 
@@ -259,7 +263,7 @@ public:
     return waitingForResponse;
   }
 
-  String getDeviceId() {
+  int getDeviceId() {
     return deviceId;
   }
 

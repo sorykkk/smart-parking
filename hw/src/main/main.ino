@@ -9,6 +9,7 @@
 
 WiFiManager wifi;
 MQTTClient mqttClient;  // No device ID needed, will be retrieved
+Device *esp32device = nullptr; // Global pointer to device
 
 std::vector<ISensor*> sensors;
 std::vector<bool> stateVector; // Track sensor states
@@ -35,8 +36,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // Check if this is a registration response
   String macAddress = mqttClient.getMac();
   String regResponseTopic = String(MQTT_TOPIC_REGISTER_DEVICE) + macAddress + "/response";
+  String sensorsRegResponseTopic = String(MQTT_TOPIC_REGISTER_SENSORS) + macAddress + "/response";
   
-  if (String(topic) == regResponseTopic) {
+  if (String(topic) == regResponseTopic || String(topic) == sensorsRegResponseTopic) {
     if(!mqttClient.handleRegistrationResponse(message)) {
       Serial.println("Could not finish registration");
     }
@@ -84,10 +86,11 @@ void setup() {
   Serial.println("\nTime synchronized!");
 
   Serial.println("\n--- Initializing ESP32 devices ---");
-  Device esp32device(MQTT_USER_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
+
+  esp32device = new Device(MQTT_USER_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
   
   // First: Register device and wait for device ID
-  mqttClient.registerDevice(esp32device);
+  mqttClient.registerDevice(*esp32device);
   
   // Wait for device registration response
   Serial.println("Waiting for device registration response...");
@@ -103,17 +106,20 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
-  
-  Serial.println("Device registered with ID: " + mqttClient.getDeviceId());
+
+  // Update device with received ID
+  int receivedDeviceId = mqttClient.getDeviceId();
+  esp32device->setId(receivedDeviceId);
+  Serial.println("Device registered with ID: " + String(receivedDeviceId));
   
   // Initialize sensors AFTER getting device ID
   Serial.println("\n--- Initializing Sensors ---");
   int sensor_id = 0;
   
   // Setup ultrasonic sensors (each represents a parking spot)
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 12, 13));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
+  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 13, 12));
+  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 14, 15));
+  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 16, 0));
 
   for (auto& s : sensors) {
     s->begin();
@@ -124,7 +130,7 @@ void setup() {
   stateVector.resize(sensors.size(), false);
 
   // Second: Register sensors with device ID
-  mqttClient.registerSensors(sensors, esp32device);
+  mqttClient.registerSensors(sensors, *esp32device);
   
   // Wait for sensors registration response
   Serial.println("Waiting for sensors registration response...");

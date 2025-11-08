@@ -39,22 +39,23 @@ public:
         id = deviceId;
     }
 
-    int getId() {
+    int getId() const {
         return id;
     }
 
     static String getMacAddress() {
+        static String cachedMac = "";
         // cache mac address
-        if(macAddress == "") 
+        if(cachedMac == "") 
         {
             byte mac[6];
             WiFi.macAddress(mac);
             char macStr[18];
             sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", 
                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-            macAddress = String(macStr);
+            cachedMac = String(macStr);
         }
-        return macAddress;
+        return cachedMac;
     }
 
     String toJson() const {

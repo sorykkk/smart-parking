@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <base64.h>  // Built-in Arduino Base64 helper
 #include "SensorInterface.h"
+#include <ArduinoJson.h>
 
 class CameraDevice : ISensor {
 private:
@@ -16,12 +17,16 @@ private:
 
 public:
   CameraDevice(const Device& device, const String& sensorTech, int sensorIndex, framesize_t size = FRAMESIZE_QVGA, int quality = 12)
-      : type("camera"), technology(sensorTech), index(sensorIndex), frameSize(size), jpegQuality(quality) {
+      : frameSize(size), jpegQuality(quality) {
+        // Initialize base class members
+        type = "camera";
+        technology = sensorTech;
+        index = sensorIndex;
         //camera_1_esp32_1
         name = technology + "_" + String(index) + "_" + device.getName() + "_" + device.getId();
   }
 
-  bool begin() {
+  void begin() override {
     camera_config_t config;
     config.ledc_channel = LEDC_CHANNEL_0;
     config.ledc_timer   = LEDC_TIMER_0;
@@ -47,7 +52,7 @@ public:
     config.jpeg_quality = jpegQuality;
     config.fb_count     = 1;
 
-    return esp_camera_init(&config) == ESP_OK;
+    esp_camera_init(&config);
   }
 
   camera_fb_t* capture(bool encodeBase64 = false) {
