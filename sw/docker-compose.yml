@@ -15,7 +15,7 @@ services:
       - "5000:5000"
     environment:
       - SECRET_KEY
-      - DATABASE_URL=sqlite:///data/findspot.db
+      - DATABASE_URL=sqlite:////app/data/findspot.db
       - MQTT_BROKER=mqtt-broker
       - MQTT_PORT=1883
       - MQTT_USER=flask_backend
