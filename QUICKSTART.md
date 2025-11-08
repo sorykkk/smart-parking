@@ -22,12 +22,12 @@ cd ../..
 cd nginx && chmod +x generate-ssl.sh && ./generate-ssl.sh && cd ..
 
 # Build and start everything
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 ### 2. ESP32 Setup
 1. Open `hw/src/Config.h`
-2. Set your Raspberry Pi IP for `MQTT_BROKER` (default: 192.168.1.100)
+2. Set your Raspberry Pi IP for `MQTT_BROKER` (default: 192.168.1.103)
 3. ESP32 will automatically register and create its own MQTT credentials
 4. Create `hw/src/env.h`:
    ```cpp
