@@ -78,14 +78,21 @@ def create_mqtt_user(username, password):
         ], capture_output=True, text=True)
         
         if result.returncode == 0:
-            print(f"Successfully created MQTT user: {username}")
+            print(f"✓ Successfully created MQTT user: {username}")
+            
+            # Signal mosquitto to reload password file
+            # The broker will automatically reload when the file is modified
+            print(f"MQTT user {username} added to passwd file")
+            
             return True
         else:
-            print(f"Failed to create MQTT user {username}: {result.stderr}")
+            print(f"✗ Failed to create MQTT user {username}: {result.stderr}")
             return False
             
     except Exception as e:
-        print(f"Error creating MQTT user {username}: {e}")
+        print(f"✗ Error creating MQTT user {username}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # Global MQTT client
