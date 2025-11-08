@@ -71,7 +71,7 @@ echo " Waiting for services to start..."
 sleep 15
 
 # Health check
-echo "🩺 Running health checks..."
+echo " Running health checks..."
 if curl -f "http://localhost:5000/api/health" >/dev/null 2>&1; then
     echo " Backend API is healthy"
 else
