@@ -28,6 +28,7 @@ services:
     volumes:
       - ./findspot-backend/flask:/app
       - backend-data:/app/data
+      - ./findspot-backend/.env:/.env:ro
     depends_on:
       - mqtt-broker
     networks:
@@ -50,6 +51,7 @@ services:
       - "9001:9001"
     volumes:
       - ./findspot-backend/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./findspot-backend/mosquitto/passwd:/mosquitto/config/passwd:ro
       - mqtt-data:/mosquitto/data
       - mqtt-logs:/mosquitto/log
     networks:
