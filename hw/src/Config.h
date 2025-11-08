@@ -8,11 +8,17 @@
 #include "env.h"
 
 // MQTT Broker settings (Raspberry Pi server)
-//TODO: make it also retrievable from an external storage like database, or use backend api to retrieve
-//TODO: for now it's ok to be hardcoded
-#define MQTT_BROKER "192.168.1.103"
+// TODO: make it also retrievable from an external storage like database, or use backend api to retrieve
+// TODO: for now it's ok to be hardcoded
+// IMPORTANT: Update this IP address to match your Raspberry Pi 5 IP address
+// This should match the PI_IP_ADDRESS in sw/.env
+#define MQTT_BROKER "192.168.1.100"
 #define MQTT_PORT 1883
-#define MQTT_USER_PREFIX "esp32_dev"
+#define MQTT_DEVICE_PREFIX "esp32_dev"
+
+// Backend MQTT credentials for initial registration
+#define BACKEND_MQTT_USER "flask_backend"
+#define BACKEND_MQTT_PASS "backend_password"
 
 // MQTT Topics
 #define MQTT_TOPIC_SENSORS "sensors/"

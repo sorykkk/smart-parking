@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-## 🚀 Quick Setup (15 minutes)
+## 🚀 Quick Setup (10 minutes)
 
 ### 1. Raspberry Pi Setup
 ```bash
@@ -8,26 +8,27 @@
 git clone <repo-url> smart-parking
 cd smart-parking/sw
 
-# Generate MQTT passwords
+# Create environment file
+cp .env.example .env
+# Edit .env: Set SECRET_KEY and verify MQTT_PASSWORD=backend_password
+
+# Create initial MQTT users (backend credentials)
 cd findspot-backend/mosquitto
-mosquitto_passwd -c passwd esp32_device
-mosquitto_passwd passwd flask_backend
+mosquitto_passwd -c passwd flask_backend
+# Enter: backend_password
 cd ../..
 
 # Generate SSL certificate
 cd nginx && chmod +x generate-ssl.sh && ./generate-ssl.sh && cd ..
 
-# Build frontend
-cd findspot-frontend && npm install && npm run build && cd ..
-
-# Start everything
+# Build and start everything
 docker-compose up -d
 ```
 
 ### 2. ESP32 Setup
 1. Open `hw/src/Config.h`
-2. Set your Raspberry Pi IP/domain for `MQTT_BROKER`
-3. Set same password as generated above for `MQTT_PASSWORD`
+2. Set your Raspberry Pi IP for `MQTT_BROKER` (default: 192.168.1.100)
+3. ESP32 will automatically register and create its own MQTT credentials
 4. Create `hw/src/env.h`:
    ```cpp
    #define WIFI_SSID "YourWiFi"

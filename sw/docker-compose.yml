@@ -49,7 +49,7 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - ./findspot-backend/mosquitto/mosquitto-new.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./findspot-backend/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mqtt-data:/mosquitto/data
       - mqtt-logs:/mosquitto/log
     networks:

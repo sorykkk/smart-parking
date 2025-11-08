@@ -12,6 +12,7 @@ import os
 from datetime import datetime, timezone
 import threading
 from dotenv import load_dotenv
+import hashlib
 
 # Load environment variables from .env file
 # First try to load from parent directory (sw/findspot-backend/)
@@ -50,6 +51,39 @@ MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'backend_password')
 MQTT_TOPIC_SENSORS = "sensors/#"
 MQTT_TOPIC_DEVICE_REGISTER = "device/register/#"
 MQTT_TOPIC_SENSORS_REGISTER = "sensors/register/#"
+
+# ESP32 MQTT Credentials Configuration
+# ESP32 generates and sends its own credentials during registration
+
+def create_mqtt_user(username, password):
+    """Add MQTT user to mosquitto passwd file"""
+    passwd_file = "/mosquitto/config/passwd"
+    
+    try:
+        # Check if user already exists
+        if os.path.exists(passwd_file):
+            with open(passwd_file, 'r') as f:
+                existing_users = f.read()
+                if f"{username}:" in existing_users:
+                    print(f"MQTT user {username} already exists")
+                    return True
+        
+        # Add new user with password hash
+        import subprocess
+        result = subprocess.run([
+            'mosquitto_passwd', '-b', passwd_file, username, password
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"Successfully created MQTT user: {username}")
+            return True
+        else:
+            print(f"Failed to create MQTT user {username}: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"Error creating MQTT user {username}: {e}")
+        return False
 
 # Global MQTT client
 mqtt_client = None
@@ -143,11 +177,20 @@ def process_device_registration(mqtt_client, data):
             latitude = data.get('latitude')
             longitude = data.get('longitude')
             
+            # ESP32 sends its own generated credentials
+            mqtt_username = data.get('mqtt_username')
+            mqtt_password = data.get('mqtt_password')
+            
             if not mac_address:
                 print("Registration failed: MAC address required")
                 return
             
+            if not mqtt_username or not mqtt_password:
+                print("Registration failed: MQTT credentials required")
+                return
+            
             print(f"Processing device registration for MAC: {mac_address}")
+            print(f"ESP32 MQTT username: {mqtt_username}")
             
             # Check if device already exists
             device = Device.query.filter_by(mac_address=mac_address).first()
@@ -186,11 +229,20 @@ def process_device_registration(mqtt_client, data):
             
             print(f"Device registered: {device_id}")
             
+            # Create MQTT user with credentials provided by ESP32
+            mqtt_created = create_mqtt_user(mqtt_username, mqtt_password)
+            
+            if mqtt_created:
+                print(f"MQTT credentials created for device {mac_address}")
+            else:
+                print(f"Warning: Failed to create MQTT credentials for device {mac_address}")
+            
             # Send response back to device via MQTT
             response_topic = f"device/register/{mac_address}/response"
             response_payload = {
                 'status': 'registered',
-                'id': device_id,  # ESP32 expects 'id' field to match current implementation
+                'id': device_id,
+                'mac_address': mac_address,
                 'message': 'Device registered successfully' if is_new else 'Device updated successfully'
             }
             

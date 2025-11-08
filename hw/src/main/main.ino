@@ -54,6 +54,12 @@ void setup() {
   Serial.println("\n--- Connecting to WiFi ---");
   wifi.connect();
   
+  Serial.println("\n--- Initializing ESP32 devices ---");
+  esp32device = new Device(MQTT_DEVICE_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
+  
+  // Set device in MQTT client BEFORE begin() so MAC address is available
+  mqttClient.setDevice(*esp32device);
+  
   // Initialize MQTT client
   Serial.println("\n--- Initializing MQTT Client ---");
   mqttClient.begin();
@@ -76,7 +82,7 @@ void setup() {
   
   Serial.println("MQTT Connected");
 
-  Serial.println("\n--- Synchornizing time ---");
+  Serial.println("\n--- Synchronizing time ---");
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
   while (!getLocalTime(&timeinfo)) {
@@ -84,10 +90,6 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nTime synchronized!");
-
-  Serial.println("\n--- Initializing ESP32 devices ---");
-
-  esp32device = new Device(MQTT_USER_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
   
   // First: Register device and wait for device ID
   mqttClient.registerDevice(*esp32device);

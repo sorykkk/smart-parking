@@ -1,9 +1,10 @@
-#ifndef MQTT_CLIENT_H
-#define MQTT_CLIENT_H
+#ifndef MQTTCLIENT_H
+#define MQTTCLIENT_H
 
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include "mbedtls/md.h"  // For SHA256
 #include "Config.h"
 #include "Device.h"
 
@@ -11,8 +12,10 @@ class MQTTClient {
 private:
   WiFiClient wifiClient;
   PubSubClient mqttClient;
+  // device info
   int deviceId = -1;
-  String macAddress;
+  String macAddress;  // Store MAC address
+
   unsigned long lastReconnectAttempt;
   static const unsigned long RECONNECT_INTERVAL = 5000; // 5 seconds
   
@@ -23,17 +26,74 @@ private:
   unsigned long responseTimeout;
   static const unsigned long RESPONSE_TIMEOUT_MS = 10000; // 10 seconds
 
+  // Generate deterministic MQTT credentials matching backend logic
+  String generateMQTTUsername() {
+    String cleanMac = macAddress;
+    cleanMac.replace(":", "");
+    cleanMac.toLowerCase();
+    return MQTT_DEVICE_PREFIX + "_" + cleanMac;  // Use configurable prefix
+  }
+
+  String generateMQTTPassword() {
+    // Generate password matching backend SHA256 logic
+    // Backend: password_data = f"{clean_mac}{mqtt_salt}"
+    // Backend: hashlib.sha256(password_data.encode()).hexdigest()[:32]
+    
+    String cleanMac = macAddress;
+    cleanMac.replace(":", "");
+    cleanMac.toLowerCase();
+    
+    String combined = cleanMac + String(MQTT_PASS);
+    
+    // Use mbedTLS SHA256
+    byte hash[32];
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+    
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
+    mbedtls_md_starts(&ctx);
+    mbedtls_md_update(&ctx, (const unsigned char*)combined.c_str(), combined.length());
+    mbedtls_md_finish(&ctx, hash);
+    mbedtls_md_free(&ctx);
+    
+    // Convert to hex string (first 32 characters to match backend)
+    String password = "";
+    for (int i = 0; i < 16; i++) {  // 16 bytes = 32 hex chars
+      char hex[3];
+      sprintf(hex, "%02x", hash[i]);
+      password += String(hex);
+    }
+    
+    return password;
+  }
+
   bool reconnect() {
+    if (macAddress.isEmpty()) {
+      Serial.println("Cannot reconnect: Device MAC address not set");
+      return false;
+    }
+    
     Serial.print("Attempting MQTT connection...");
 
-    // Use MAC address as client ID before registration, device ID after
-    String clientId = deviceId != -1 ? String(deviceId) : Device::getMacAddress();
+    String clientId = macAddress;
+    String mqttUser, mqttPassword;
     
-    // Build MQTT username: prefix + device_id (or MAC if not registered yet)
-    String mqttUser = String(MQTT_USER_PREFIX) + "_" + clientId;
+    if (!deviceRegistrationComplete) {
+      // Use backend credentials for initial registration
+      mqttUser = BACKEND_MQTT_USER;
+      mqttPassword = BACKEND_MQTT_PASS;
+      clientId = MQTT_DEVICE_PREFIX + "_reg_" + macAddress;
+      Serial.println("Using backend credentials for registration");
+    } else {
+      // Use device credentials for normal operation
+      mqttUser = generateMQTTUsername();
+      mqttPassword = generateMQTTPassword();
+      Serial.println("Using device credentials");
+    }
     
-    // Attempt to connect with username and password
-    if (mqttClient.connect(clientId.c_str(), mqttUser.c_str(), MQTT_PASS)) {
+    // Attempt to connect with appropriate credentials
+    if (mqttClient.connect(clientId.c_str(), mqttUser.c_str(), mqttPassword.c_str())) {
       Serial.println("connected");
       Serial.println("MQTT User: " + mqttUser);
       
@@ -53,8 +113,16 @@ private:
 
 public:
   MQTTClient() 
-    : mqttClient(wifiClient), macAddress(Device::getMacAddress()), lastReconnectAttempt(0), 
+    : mqttClient(wifiClient), lastReconnectAttempt(0), 
       deviceRegistrationComplete(false), sensorsRegistrationComplete(false), waitingForResponse(false), responseTimeout(0) { }
+
+  void setDevice(Device& device) {
+    macAddress = device.getMacAddress();  // Store MAC address
+  }
+
+  String getMac() {
+    return macAddress;
+  }
 
   void begin() {
     mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
@@ -72,7 +140,7 @@ public:
       unsigned long now = millis();
       if (now - lastReconnectAttempt > RECONNECT_INTERVAL) {
         lastReconnectAttempt = now;
-        // Attempt to reconnect
+        // Attempt to reconnect using stored device
         if (reconnect()) {
           lastReconnectAttempt = 0;
         }
@@ -105,18 +173,35 @@ public:
 
   /**
    * Register device with backend via MQTT
-   * Sends MAC address and all sensor/camera information
+   * Sends MAC address, credentials, and all device information
    */
   bool registerDevice(const Device& device) {
-    if (!mqttClient.connected()) {
-      Serial.println("MQTT not connected, cannot register");
-      return false;
-    }
-
     Serial.println("\n=== Device Registration via MQTT ===");
+    
+    // For initial registration, we need to connect first
+    if (!mqttClient.connected()) {
+      Serial.println("MQTT not connected, attempting to connect for registration...");
+      if (!reconnect()) {
+        Serial.println("Failed to connect to MQTT for registration");
+        return false;
+      }
+    }
  
+    // Get device payload
+    String devicePayload = device.toJson();
+    
+    // Parse it to add MQTT credentials
+    DynamicJsonDocument doc(4096);
+    deserializeJson(doc, devicePayload);
+    
+    // Add MQTT credentials that ESP32 is using
+    doc["mqtt_username"] = generateMQTTUsername();
+    doc["mqtt_password"] = generateMQTTPassword();
+    
+    String payload;
+    serializeJson(doc, payload);
+    
     Serial.println("Device registration payload:");
-    String payload = device.toJson();
     Serial.println(payload);
     
     // Publish to registration request topic
@@ -206,10 +291,25 @@ public:
       if(deviceRegistrationComplete == false) {
         // This is device registration response
         deviceRegistrationComplete = true;
-        if(doc.containsKey("device_id")) {
-          deviceId = doc["device_id"].as<int>();
+        if(doc.containsKey("id")) {  // Backend sends 'id', not 'device_id'
+          deviceId = doc["id"].as<int>();
           Serial.println("Device ID received: " + String(deviceId));
         }
+        
+        Serial.println("Device registration complete!");
+        Serial.println("Switching to device credentials...");
+        
+        // Disconnect and reconnect with device credentials
+        mqttClient.disconnect();
+        delay(1000);
+        
+        // Reconnect will now use device credentials since deviceRegistrationComplete = true
+        if (reconnect()) {
+          Serial.println("Successfully switched to device credentials");
+        } else {
+          Serial.println("Failed to reconnect with device credentials");
+        }
+        
       } else {
         // This is sensors registration response  
         sensorsRegistrationComplete = true;
@@ -266,15 +366,4 @@ public:
   int getDeviceId() {
     return deviceId;
   }
-
-  String getMac() {
-    return macAddress;
-  }
-
-
-  PubSubClient& getClient() {
-    return mqttClient;
-  }
-};
-
-#endif // MQTT_CLIENT_H
+}
