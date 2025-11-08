@@ -34,7 +34,10 @@ from models import Device, DistanceSensor, Camera
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///data/findspot.db')
+
+# Use absolute path for database to avoid issues with relative paths
+db_path = os.path.join(os.path.dirname(__file__), 'data', 'findspot.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{db_path}')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
