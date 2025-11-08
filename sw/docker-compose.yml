@@ -26,7 +26,6 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONIOENCODING=utf-8
     volumes:
-      - ./findspot-backend/flask:/app
       - backend-data:/app/data
       - ./findspot-backend/.env:/.env:ro
     depends_on:
