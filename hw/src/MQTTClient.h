@@ -240,11 +240,18 @@ public:
     }
 
     Serial.println("\n=== Sensors Registration via MQTT ===");
+    Serial.print("Free heap before allocation: ");
+    Serial.println(ESP.getFreeHeap());
     
     if (!mqttClient.connected()) {
       Serial.println("MQTT not connected, cannot register");
       return false;
     }
+    
+    Serial.print("Number of sensors: ");
+    Serial.println(sensors.size());
+    Serial.print("Device ID: ");
+    Serial.println(deviceId);
     
     // Allocate sufficient buffer - need at least 1600 bytes based on actual payload
     DynamicJsonDocument* doc = new DynamicJsonDocument(2048);
@@ -253,47 +260,83 @@ public:
       return false;
     }
     
+    Serial.print("Free heap after doc allocation: ");
+    Serial.println(ESP.getFreeHeap());
+    
+    int sensorCount = 0;
     for (const auto& sensor : sensors) {
-      if (!sensor) continue;
+      if (!sensor) {
+        Serial.println("Null sensor pointer, skipping");
+        continue;
+      }
       
-      // Get the type and store in a buffer to keep it alive
-      char typeKeyBuf[32];
-      sensor->getType().toCharArray(typeKeyBuf, sizeof(typeKeyBuf));
+      Serial.print("\n--- Processing sensor ");
+      Serial.print(sensorCount++);
+      Serial.println(" ---");
       
-      JsonArray arr = (*doc)[typeKeyBuf];
+      // CRITICAL: Get String objects and pass them directly to ArduinoJson
+      // ArduinoJson will COPY String content, but only stores POINTERS for const char*
+      String typeStr = sensor->getType();
+      String nameStr = sensor->getName();
+      String techStr = sensor->getTechnology();
+      
+      Serial.print("Type: '");
+      Serial.print(typeStr);
+      Serial.println("'");
+      Serial.print("Name: '");
+      Serial.print(nameStr);
+      Serial.println("'");
+      Serial.print("Technology: '");
+      Serial.print(techStr);
+      Serial.println("'");
+      Serial.print("Index: ");
+      Serial.println(sensor->getIndex());
+      
+      // Use String for the key - ArduinoJson will copy it
+      JsonArray arr = (*doc)[typeStr];
       if(arr.isNull()) {
-        arr = doc->createNestedArray(typeKeyBuf);
+        Serial.println("Creating new array for type");
+        arr = doc->createNestedArray(typeStr);
       }
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
       
-      // Build the JSON values directly - use char buffers to keep data alive
-      char nameBuf[64];
-      char techBuf[32];
-      sensor->getName().toCharArray(nameBuf, sizeof(nameBuf));
-      sensor->getTechnology().toCharArray(techBuf, sizeof(techBuf));
-      
-      sensorObj["name"] = nameBuf;
+      // Pass String objects directly - ArduinoJson copies the content!
+      sensorObj["name"] = nameStr;
       sensorObj["index"] = sensor->getIndex();
-      sensorObj["type"] = typeKeyBuf;  // Use the buffer for the type
-      sensorObj["technology"] = techBuf;
+      sensorObj["type"] = typeStr;
+      sensorObj["technology"] = techStr;
+      
+      Serial.println("Sensor object created in JSON");
+      Serial.print("Free heap: ");
+      Serial.println(ESP.getFreeHeap());
     }
 
+    Serial.println("\n--- Starting serialization ---");
     String output;
-    output.reserve(1700);  // Pre-allocate for 1596+ bytes
+    output.reserve(1700);
+    
+    Serial.print("Free heap before serialize: ");
+    Serial.println(ESP.getFreeHeap());
+    
     size_t len = serializeJson(*doc, output);
+    
+    Serial.print("Free heap after serialize: ");
+    Serial.println(ESP.getFreeHeap());
     
     if (len == 0) {
       Serial.println("Failed to serialize JSON");
-      delete doc;  // Clean up on error
+      delete doc;
       return false;
     }
     
     Serial.print("JSON size: ");
     Serial.println(len);
+    Serial.println("JSON payload:");
+    Serial.println(output);
     
-    // Create topic string and keep it alive
+    // Create topic
     const char* baseTopic = MQTT_TOPIC_REGISTER_SENSORS;
     char topicBuffer[64];
     snprintf(topicBuffer, sizeof(topicBuffer), "%srequest", baseTopic);
@@ -301,12 +344,27 @@ public:
     Serial.print("Publishing to: ");
     Serial.println(topicBuffer);
     
-    // Publish using char buffer, not String concatenation
-    bool result = mqttClient.connected() && mqttClient.publish(topicBuffer, output.c_str());
+    Serial.print("MQTT connected: ");
+    Serial.println(mqttClient.connected() ? "YES" : "NO");
+    
+    Serial.print("Free heap before publish: ");
+    Serial.println(ESP.getFreeHeap());
+    
+    // Publish
+    bool result = mqttClient.publish(topicBuffer, output.c_str());
+    
+    Serial.print("Free heap after publish: ");
+    Serial.println(ESP.getFreeHeap());
+    
+    Serial.print("Publish result: ");
+    Serial.println(result ? "SUCCESS" : "FAILED");
     
     // NOW we can free the document AFTER publish is complete
     delete doc;
     doc = nullptr;
+    
+    Serial.print("Free heap after doc delete: ");
+    Serial.println(ESP.getFreeHeap());
     
     if (result) {
       Serial.println("Published successfully");
