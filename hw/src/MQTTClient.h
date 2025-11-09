@@ -362,8 +362,22 @@ public:
     Serial.print("Free heap before publish: ");
     Serial.println(ESP.getFreeHeap());
     
-    // Publish using the char buffer directly
-    bool result = mqttClient.publish(topicBuffer, jsonBuffer);
+    // Check buffer size
+    Serial.print("PubSubClient buffer size: ");
+    Serial.println(mqttClient.getBufferSize());
+    Serial.print("Payload length: ");
+    Serial.println(strlen(jsonBuffer));
+    
+    // Add delays and yields to let system stabilize
+    yield();
+    delay(100);
+    
+    Serial.println("About to call publish...");
+    
+    // Try publishing with explicit length parameter to avoid strlen inside publish
+    bool result = mqttClient.publish(topicBuffer, (const uint8_t*)jsonBuffer, strlen(jsonBuffer));
+    
+    Serial.println("Publish call completed");
     
     Serial.print("Free heap after publish: ");
     Serial.println(ESP.getFreeHeap());
