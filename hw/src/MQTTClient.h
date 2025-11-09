@@ -227,12 +227,19 @@ public:
     }
 
     Serial.println("\n=== Sensors Registration via MQTT ===");
-    DynamicJsonDocument doc(8192);
+    
+    // Allocate on heap to avoid stack overflow (8KB is too much for stack)
+    DynamicJsonDocument* doc = new DynamicJsonDocument(8192);
+    if (!doc) {
+      Serial.println("Failed to allocate memory for sensor registration");
+      return false;
+    }
+    
     for (const auto& sensor : sensors) {
       String type = sensor->getType();
-      JsonArray arr = doc[type];
+      JsonArray arr = (*doc)[type];
       if(arr.isNull()) {
-        arr = doc.createNestedArray(type);
+        arr = doc->createNestedArray(type);
       }
       
       JsonObject sensorObj = arr.createNestedObject();
@@ -246,7 +253,8 @@ public:
     }
 
     String output;
-    serializeJson(doc, output);
+    serializeJson(*doc, output);
+    delete doc;  // Free heap memory immediately after serialization
 
     Serial.println("Sensors registration payload:");
     Serial.println(output);
