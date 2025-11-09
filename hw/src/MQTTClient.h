@@ -256,24 +256,28 @@ public:
     for (const auto& sensor : sensors) {
       if (!sensor) continue;
       
-      // Get sensor properties - DON'T use .c_str(), let ArduinoJson copy the Strings
-      String sensorType = sensor->getType();
-      String sensorName = sensor->getName();
-      String sensorTech = sensor->getTechnology();
-      int sensorIndex = sensor->getIndex();
+      // Get the type and store in a buffer to keep it alive
+      char typeKeyBuf[32];
+      sensor->getType().toCharArray(typeKeyBuf, sizeof(typeKeyBuf));
       
-      // Use String directly, NOT .c_str() - this forces ArduinoJson to COPY the data
-      JsonArray arr = (*doc)[sensorType];
+      JsonArray arr = (*doc)[typeKeyBuf];
       if(arr.isNull()) {
-        arr = doc->createNestedArray(sensorType);
+        arr = doc->createNestedArray(typeKeyBuf);
       }
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
-      sensorObj["name"] = sensorName;  // ArduinoJson will copy the String
-      sensorObj["index"] = sensorIndex;
-      sensorObj["type"] = sensorType;  // ArduinoJson will copy the String
-      sensorObj["technology"] = sensorTech;  // ArduinoJson will copy the String
+      
+      // Build the JSON values directly - use char buffers to keep data alive
+      char nameBuf[64];
+      char techBuf[32];
+      sensor->getName().toCharArray(nameBuf, sizeof(nameBuf));
+      sensor->getTechnology().toCharArray(techBuf, sizeof(techBuf));
+      
+      sensorObj["name"] = nameBuf;
+      sensorObj["index"] = sensor->getIndex();
+      sensorObj["type"] = typeKeyBuf;  // Use the buffer for the type
+      sensorObj["technology"] = techBuf;
     }
 
     String output;
@@ -289,15 +293,23 @@ public:
     Serial.print("JSON size: ");
     Serial.println(len);
     
-    // Publish to registration request topic
-    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
-    bool result = publish(topic, output);
+    // Create topic string and keep it alive
+    const char* baseTopic = MQTT_TOPIC_REGISTER_SENSORS;
+    char topicBuffer[64];
+    snprintf(topicBuffer, sizeof(topicBuffer), "%srequest", baseTopic);
+    
+    Serial.print("Publishing to: ");
+    Serial.println(topicBuffer);
+    
+    // Publish using char buffer, not String concatenation
+    bool result = mqttClient.connected() && mqttClient.publish(topicBuffer, output.c_str());
     
     // NOW we can free the document AFTER publish is complete
     delete doc;
     doc = nullptr;
     
     if (result) {
+      Serial.println("Published successfully");
       waitingForResponse = true;
       responseTimeout = millis();
       Serial.println("Sensors registration request sent, waiting for response...");
