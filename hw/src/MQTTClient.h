@@ -243,17 +243,7 @@ public:
     Serial.print("Free heap before allocation: ");
     Serial.println(ESP.getFreeHeap());
     
-    if (!mqttClient.connected()) {
-      Serial.println("MQTT not connected, cannot register");
-      return false;
-    }
-    
-    Serial.print("Number of sensors: ");
-    Serial.println(sensors.size());
-    Serial.print("Device ID: ");
-    Serial.println(deviceId);
-    
-    // Allocate sufficient buffer - need at least 1600 bytes based on actual payload
+    // Allocate JSON document
     DynamicJsonDocument* doc = new DynamicJsonDocument(2048);
     if (!doc) {
       Serial.println("Failed to allocate memory for sensor registration");
@@ -263,140 +253,53 @@ public:
     Serial.print("Free heap after doc allocation: ");
     Serial.println(ESP.getFreeHeap());
     
-    int sensorCount = 0;
+    // Populate the document
     for (const auto& sensor : sensors) {
-      if (!sensor) {
-        Serial.println("Null sensor pointer, skipping");
-        continue;
-      }
+      if (!sensor) continue;
       
-      Serial.print("\n--- Processing sensor ");
-      Serial.print(sensorCount++);
-      Serial.println(" ---");
-      
-      // CRITICAL: Get String objects and pass them directly to ArduinoJson
-      // ArduinoJson will COPY String content, but only stores POINTERS for const char*
       String typeStr = sensor->getType();
-      String nameStr = sensor->getName();
-      String techStr = sensor->getTechnology();
-      
-      Serial.print("Type: '");
-      Serial.print(typeStr);
-      Serial.println("'");
-      Serial.print("Name: '");
-      Serial.print(nameStr);
-      Serial.println("'");
-      Serial.print("Technology: '");
-      Serial.print(techStr);
-      Serial.println("'");
-      Serial.print("Index: ");
-      Serial.println(sensor->getIndex());
-      
-      // Use String for the key - ArduinoJson will copy it
       JsonArray arr = (*doc)[typeStr];
       if(arr.isNull()) {
-        Serial.println("Creating new array for type");
         arr = doc->createNestedArray(typeStr);
       }
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
-      
-      // Pass String objects directly - ArduinoJson copies the content!
-      sensorObj["name"] = nameStr;
+      sensorObj["name"] = sensor->getName();
       sensorObj["index"] = sensor->getIndex();
       sensorObj["type"] = typeStr;
-      sensorObj["technology"] = techStr;
-      
-      Serial.println("Sensor object created in JSON");
-      Serial.print("Free heap: ");
-      Serial.println(ESP.getFreeHeap());
+      sensorObj["technology"] = sensor->getTechnology();
     }
 
-    Serial.println("\n--- Starting serialization ---");
-    
-    Serial.print("Free heap before serialize: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    // Serialize to a char buffer instead of String to avoid pointer issues
-    size_t len = measureJson(*doc);
-    Serial.print("Measured JSON size: ");
-    Serial.println(len);
-    
-    // Allocate buffer with extra space for null terminator
-    char* jsonBuffer = new char[len + 1];
-    if (!jsonBuffer) {
-      Serial.println("Failed to allocate JSON buffer");
-      delete doc;
-      return false;
-    }
-    
-    serializeJson(*doc, jsonBuffer, len + 1);
-    
-    Serial.print("Free heap after serialize: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    Serial.print("JSON size: ");
-    Serial.println(len);
-    Serial.println("JSON payload:");
-    Serial.println(jsonBuffer);
-    
-    // We can delete the doc now, we have the serialized buffer
+    // Serialize directly to a String object. This is the simplest and safest way.
+    String payload;
+    payload.reserve(measureJson(*doc) + 1); // Pre-allocate memory
+    size_t len = serializeJson(*doc, payload);
+
+    // The document is no longer needed
     delete doc;
     doc = nullptr;
+
+    if (len == 0) {
+      Serial.println("Failed to serialize JSON");
+      return false;
+    }
+
+    Serial.println("--- Payload Ready ---");
+    Serial.print("JSON size: ");
+    Serial.println(len);
+    Serial.println(payload);
+
+    // Use the exact same working pattern as registerDevice
+    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
     
-    Serial.print("Free heap after doc delete: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    // Create topic
-    const char* baseTopic = MQTT_TOPIC_REGISTER_SENSORS;
-    char topicBuffer[64];
-    snprintf(topicBuffer, sizeof(topicBuffer), "%srequest", baseTopic);
-    
-    Serial.print("Publishing to: ");
-    Serial.println(topicBuffer);
-    
-    Serial.print("MQTT connected: ");
-    Serial.println(mqttClient.connected() ? "YES" : "NO");
-    
-    Serial.print("Free heap before publish: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    // Check buffer size
-    Serial.print("PubSubClient buffer size: ");
-    Serial.println(mqttClient.getBufferSize());
-    Serial.print("Payload length: ");
-    Serial.println(strlen(jsonBuffer));
-    
-    // Add delays and yields to let system stabilize
-    yield();
-    delay(100);
-    
-    Serial.println("About to call publish...");
-    
-    // Try publishing with explicit length parameter to avoid strlen inside publish
-    bool result = mqttClient.publish(topicBuffer, (const uint8_t*)jsonBuffer, strlen(jsonBuffer));
-    
-    Serial.println("Publish call completed");
-    
-    Serial.print("Free heap after publish: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    Serial.print("Publish result: ");
-    Serial.println(result ? "SUCCESS" : "FAILED");
-    
-    // Clean up the JSON buffer
-    delete[] jsonBuffer;
-    jsonBuffer = nullptr;
-    
-    Serial.print("Free heap after buffer delete: ");
-    Serial.println(ESP.getFreeHeap());
+    // Use the simple, reliable publish helper method
+    bool result = publish(topic, payload);
     
     if (result) {
-      Serial.println("Published successfully");
+      Serial.println("Sensors registration request sent, waiting for response...");
       waitingForResponse = true;
       responseTimeout = millis();
-      Serial.println("Sensors registration request sent, waiting for response...");
     } else {
       Serial.println("Failed to send sensors registration request");
     }
