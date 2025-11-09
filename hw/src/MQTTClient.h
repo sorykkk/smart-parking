@@ -273,23 +273,30 @@ public:
 
     Serial.println("Serializing JSON...");
     String output;
+    output.reserve(400);  // Pre-allocate to avoid reallocation
     serializeJson(*doc, output);
-    Serial.println("JSON serialized, size: " + String(output.length()));
-
-    // Don't print full payload - it's too large and can cause crashes
-    // Serial.println("Sensors registration payload:");
-    // Serial.println(output);
     
-    // Free heap memory after serialization
+    // Free heap memory immediately
     delete doc;
     doc = nullptr;
     
+    Serial.println("JSON serialized, size: " + String(output.length()));
+    
     // Publish to registration request topic
-    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
-    Serial.println("Publishing to: " + topic);
-    bool result = publish(topic, output);
+    const char* topicStr = "sensors/register/request";
+    Serial.print("Publishing to: ");
+    Serial.println(topicStr);
+    
+    if (!mqttClient.connected()) {
+      Serial.println("ERROR: MQTT not connected!");
+      return false;
+    }
+    
+    Serial.println("Attempting publish...");
+    bool result = mqttClient.publish(topicStr, output.c_str());
     
     if (result) {
+      Serial.println("Published successfully");
       waitingForResponse = true;
       responseTimeout = millis();
       Serial.println("Sensors registration request sent, waiting for response...");
