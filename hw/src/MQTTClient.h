@@ -293,6 +293,17 @@ public:
     // Use the exact same working pattern as registerDevice
     String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
     
+    // --- FORCE RECONNECT ---
+    Serial.println("Forcing MQTT reconnect before sensor registration publish...");
+    mqttClient.disconnect();
+    delay(500); // Give time for disconnect to complete
+    if (!reconnect()) {
+        Serial.println("Failed to reconnect before publishing sensors!");
+        return false;
+    }
+    delay(500); // Settle after reconnect
+    // --- END FORCE RECONNECT ---
+
     // Use the simple, reliable publish helper method
     bool result = publish(topic, payload);
     
