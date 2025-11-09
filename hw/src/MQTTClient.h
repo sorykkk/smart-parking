@@ -227,16 +227,29 @@ public:
     }
 
     Serial.println("\n=== Sensors Registration via MQTT ===");
+    Serial.println("Sensor count: " + String(sensors.size()));
+    Serial.println("Device ID: " + String(deviceId));
     
-    // Allocate on heap to avoid stack overflow (8KB is too much for stack)
-    DynamicJsonDocument* doc = new DynamicJsonDocument(8192);
+    // Use smaller buffer - we only have 3 simple sensors
+    DynamicJsonDocument* doc = new DynamicJsonDocument(2048);
     if (!doc) {
       Serial.println("Failed to allocate memory for sensor registration");
       return false;
     }
     
+    Serial.println("Building sensor data...");
+    int sensorNum = 0;
     for (const auto& sensor : sensors) {
+      Serial.println("Processing sensor " + String(sensorNum++));
+      
+      if (!sensor) {
+        Serial.println("ERROR: Null sensor pointer!");
+        continue;
+      }
+      
       String type = sensor->getType();
+      Serial.println("Sensor type: " + type);
+      
       JsonArray arr = (*doc)[type];
       if(arr.isNull()) {
         arr = doc->createNestedArray(type);
@@ -244,13 +257,21 @@ public:
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
-      // Populate directly without string parsing
-      sensor->toJsonObject(sensorObj);
+      
+      // Manually add fields to avoid any virtual method issues
+      sensorObj["name"] = sensor->getName();
+      sensorObj["index"] = sensor->getIndex();
+      sensorObj["type"] = type;
+      sensorObj["technology"] = sensor->getTechnology();
+      
+      Serial.println("Sensor " + String(sensorNum-1) + " added");
     }
 
+    Serial.println("Serializing JSON...");
     String output;
     serializeJson(*doc, output);
     delete doc;  // Free heap memory immediately after serialization
+    Serial.println("JSON serialized, size: " + String(output.length()));
 
     Serial.println("Sensors registration payload:");
     Serial.println(output);
