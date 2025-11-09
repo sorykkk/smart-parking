@@ -25,6 +25,9 @@ public:
         index = sensorIndex;
         //camera_1_esp32_1
         name = technology + "_" + String(index) + "_" + device.getName() + "_" + device.getId();
+        
+        // Initialize isoTime with default value
+        strcpy(isoTime, "1970-01-01T00:00:00Z");
   }
 
   void begin() override {
