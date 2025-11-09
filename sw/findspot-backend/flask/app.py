@@ -79,10 +79,22 @@ def create_mqtt_user(username, password):
         
         if result.returncode == 0:
             print(f"✓ Successfully created MQTT user: {username}")
-            
-            # Signal mosquitto to reload password file
-            # The broker will automatically reload when the file is modified
             print(f"MQTT user {username} added to passwd file")
+            
+            # Restart MQTT broker to reload password file
+            try:
+                restart_result = subprocess.run([
+                    'docker', 'restart', 'findspot-mqtt'
+                ], capture_output=True, text=True, timeout=10)
+                
+                if restart_result.returncode == 0:
+                    print(f"✓ MQTT broker restarted to reload credentials")
+                else:
+                    print(f"⚠ Warning: Could not restart MQTT broker: {restart_result.stderr}")
+                    print(f"  User {username} will be available after manual broker restart")
+            except Exception as restart_err:
+                print(f"⚠ Warning: Error restarting MQTT broker: {restart_err}")
+                print(f"  User {username} will be available after manual broker restart")
             
             return True
         else:
