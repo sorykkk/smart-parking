@@ -279,12 +279,9 @@ public:
     output.reserve(1700);  // Pre-allocate for 1596+ bytes
     size_t len = serializeJson(*doc, output);
     
-    // Free heap memory immediately
-    delete doc;
-    doc = nullptr;
-    
     if (len == 0) {
       Serial.println("Failed to serialize JSON");
+      delete doc;  // Clean up on error
       return false;
     }
     
@@ -294,6 +291,10 @@ public:
     // Publish to registration request topic
     String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
     bool result = publish(topic, output);
+    
+    // NOW we can free the document AFTER publish is complete
+    delete doc;
+    doc = nullptr;
     
     if (result) {
       waitingForResponse = true;
