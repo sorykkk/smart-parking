@@ -294,32 +294,14 @@ public:
     Serial.println(len);
     Serial.println(payload);
 
-    // EXPERIMENT: Force reconnection with backend credentials for sensor registration
-    Serial.println("EXPERIMENT: Switching to backend credentials for sensor registration");
-    mqttClient.disconnect();
-    delay(1000);
-    
-    // Temporarily override deviceRegistrationComplete to use backend credentials
-    bool originalDeviceState = deviceRegistrationComplete;
-    deviceRegistrationComplete = false; // This will make reconnect() use backend credentials
-    
-    if (!reconnect()) {
-      Serial.println("Failed to reconnect with backend credentials");
-      deviceRegistrationComplete = originalDeviceState; // Restore original state
-      return false;
-    }
-    
-    Serial.println("Successfully connected with backend credentials for sensor registration");
+    // EXPERIMENT: No credential switching - just use existing backend credentials
+    Serial.println("EXPERIMENT: Using existing backend credentials for sensor registration");
 
     // Use the exact same working pattern as registerDevice
     String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + String("request");
 
     // Use the simple, reliable publish helper method
     bool result = publish(topic, payload);
-    
-    // Restore original device state for future operations
-    deviceRegistrationComplete = originalDeviceState;
-    Serial.println("EXPERIMENT: Sensor registration with backend credentials completed");
     
     if (result) {
       Serial.println("Sensors registration request sent, waiting for response...");
@@ -364,10 +346,10 @@ public:
         }
         
         Serial.println("Device registration complete!");
-        Serial.println("Credential switch needed - setting flag for main loop");
+        Serial.println("EXPERIMENT: Skipping credential switch - keeping backend credentials");
         
-        // Don't disconnect here - just set flag for main loop to handle it safely
-        needCredentialSwitch = true;
+        // Don't switch credentials at all - just continue with backend credentials
+        // needCredentialSwitch = true;  // DISABLED for experiment
         
       } else {
         // This is sensors registration response  
