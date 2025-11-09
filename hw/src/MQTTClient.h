@@ -246,8 +246,8 @@ public:
       return false;
     }
     
-    // Use smaller buffer - we only have 3 simple sensors
-    DynamicJsonDocument* doc = new DynamicJsonDocument(1024);  // Reduced from 2048
+    // Allocate sufficient buffer - need at least 1600 bytes based on actual payload
+    DynamicJsonDocument* doc = new DynamicJsonDocument(2048);
     if (!doc) {
       Serial.println("Failed to allocate memory for sensor registration");
       return false;
@@ -276,7 +276,7 @@ public:
     }
 
     String output;
-    output.reserve(350);  // Pre-allocate
+    output.reserve(1700);  // Pre-allocate for 1596+ bytes
     size_t len = serializeJson(*doc, output);
     
     // Free heap memory immediately
