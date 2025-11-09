@@ -172,6 +172,7 @@ public:
     yield();
     delay(10);
     Serial.println("Sensor just before publish method");
+    //TODO: here is the error
     bool result = mqttClient.publish(topic.c_str(), payload.c_str(), retained);
     Serial.println("Just after publish method");
     yield();

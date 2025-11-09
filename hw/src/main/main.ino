@@ -116,6 +116,15 @@ void setup() {
   esp32device->setId(receivedDeviceId);
   Serial.println("Device registered with ID: " + String(receivedDeviceId));
   
+  // CRITICAL: Give the MQTT client time to stabilize after credential switch
+  Serial.println("Allowing MQTT client to stabilize after credential switch...");
+  delay(2000);
+  for (int i = 0; i < 10; i++) {
+    mqttClient.loop();
+    delay(100);
+  }
+  Serial.println("MQTT client stabilized");
+  
   // Initialize sensors AFTER getting device ID
   Serial.println("\n--- Initializing Sensors ---");
   int sensor_id = 0;
