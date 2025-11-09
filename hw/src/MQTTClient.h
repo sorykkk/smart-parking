@@ -162,6 +162,7 @@ public:
   }
 
   bool publish(const String& topic, const String& payload, bool retained = false) {
+    Serial.println("Sensor entered publish stage");
     if (!mqttClient.connected()) {
       Serial.println("MQTT not connected, cannot publish");
       return false;
@@ -170,9 +171,9 @@ public:
     // Give system time to handle other tasks
     yield();
     delay(10);
-    
+    Serial.println("Sensor just before publish method");
     bool result = mqttClient.publish(topic.c_str(), payload.c_str(), retained);
-    
+    Serial.println("Just after publish method");
     yield();
     
     if (result) {
@@ -291,18 +292,7 @@ public:
     Serial.println(payload);
 
     // Use the exact same working pattern as registerDevice
-    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
-    
-    // --- FORCE RECONNECT ---
-    Serial.println("Forcing MQTT reconnect before sensor registration publish...");
-    mqttClient.disconnect();
-    delay(500); // Give time for disconnect to complete
-    if (!reconnect()) {
-        Serial.println("Failed to reconnect before publishing sensors!");
-        return false;
-    }
-    delay(500); // Settle after reconnect
-    // --- END FORCE RECONNECT ---
+    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + String("request");
 
     // Use the simple, reliable publish helper method
     bool result = publish(topic, payload);
