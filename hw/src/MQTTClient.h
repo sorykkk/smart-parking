@@ -314,27 +314,39 @@ public:
     }
 
     Serial.println("\n--- Starting serialization ---");
-    String output;
-    output.reserve(1700);
     
     Serial.print("Free heap before serialize: ");
     Serial.println(ESP.getFreeHeap());
     
-    size_t len = serializeJson(*doc, output);
+    // Serialize to a char buffer instead of String to avoid pointer issues
+    size_t len = measureJson(*doc);
+    Serial.print("Measured JSON size: ");
+    Serial.println(len);
     
-    Serial.print("Free heap after serialize: ");
-    Serial.println(ESP.getFreeHeap());
-    
-    if (len == 0) {
-      Serial.println("Failed to serialize JSON");
+    // Allocate buffer with extra space for null terminator
+    char* jsonBuffer = new char[len + 1];
+    if (!jsonBuffer) {
+      Serial.println("Failed to allocate JSON buffer");
       delete doc;
       return false;
     }
     
+    serializeJson(*doc, jsonBuffer, len + 1);
+    
+    Serial.print("Free heap after serialize: ");
+    Serial.println(ESP.getFreeHeap());
+    
     Serial.print("JSON size: ");
     Serial.println(len);
     Serial.println("JSON payload:");
-    Serial.println(output);
+    Serial.println(jsonBuffer);
+    
+    // We can delete the doc now, we have the serialized buffer
+    delete doc;
+    doc = nullptr;
+    
+    Serial.print("Free heap after doc delete: ");
+    Serial.println(ESP.getFreeHeap());
     
     // Create topic
     const char* baseTopic = MQTT_TOPIC_REGISTER_SENSORS;
@@ -350,8 +362,8 @@ public:
     Serial.print("Free heap before publish: ");
     Serial.println(ESP.getFreeHeap());
     
-    // Publish
-    bool result = mqttClient.publish(topicBuffer, output.c_str());
+    // Publish using the char buffer directly
+    bool result = mqttClient.publish(topicBuffer, jsonBuffer);
     
     Serial.print("Free heap after publish: ");
     Serial.println(ESP.getFreeHeap());
@@ -359,11 +371,11 @@ public:
     Serial.print("Publish result: ");
     Serial.println(result ? "SUCCESS" : "FAILED");
     
-    // NOW we can free the document AFTER publish is complete
-    delete doc;
-    doc = nullptr;
+    // Clean up the JSON buffer
+    delete[] jsonBuffer;
+    jsonBuffer = nullptr;
     
-    Serial.print("Free heap after doc delete: ");
+    Serial.print("Free heap after buffer delete: ");
     Serial.println(ESP.getFreeHeap());
     
     if (result) {
