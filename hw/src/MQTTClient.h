@@ -274,14 +274,19 @@ public:
     Serial.println("Serializing JSON...");
     String output;
     serializeJson(*doc, output);
-    delete doc;  // Free heap memory immediately after serialization
     Serial.println("JSON serialized, size: " + String(output.length()));
 
-    Serial.println("Sensors registration payload:");
-    Serial.println(output);
+    // Don't print full payload - it's too large and can cause crashes
+    // Serial.println("Sensors registration payload:");
+    // Serial.println(output);
+    
+    // Free heap memory after serialization
+    delete doc;
+    doc = nullptr;
     
     // Publish to registration request topic
     String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
+    Serial.println("Publishing to: " + topic);
     bool result = publish(topic, output);
     
     if (result) {
