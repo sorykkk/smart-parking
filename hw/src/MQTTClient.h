@@ -167,11 +167,20 @@ public:
       return false;
     }
     
+    // Give system time to handle other tasks
+    yield();
+    delay(10);
+    
     bool result = mqttClient.publish(topic.c_str(), payload.c_str(), retained);
+    
+    yield();
+    
     if (result) {
-      Serial.println("Published to " + topic);
+      Serial.print("Published to ");
+      Serial.println(topic);
     } else {
-      Serial.println("Failed to publish to " + topic);
+      Serial.print("Failed to publish to ");
+      Serial.println(topic);
     }
     return result;
   }
@@ -231,72 +240,62 @@ public:
     }
 
     Serial.println("\n=== Sensors Registration via MQTT ===");
-    Serial.println("Sensor count: " + String(sensors.size()));
-    Serial.println("Device ID: " + String(deviceId));
+    
+    if (!mqttClient.connected()) {
+      Serial.println("MQTT not connected, cannot register");
+      return false;
+    }
     
     // Use smaller buffer - we only have 3 simple sensors
-    DynamicJsonDocument* doc = new DynamicJsonDocument(2048);
+    DynamicJsonDocument* doc = new DynamicJsonDocument(1024);  // Reduced from 2048
     if (!doc) {
       Serial.println("Failed to allocate memory for sensor registration");
       return false;
     }
     
-    Serial.println("Building sensor data...");
-    int sensorNum = 0;
     for (const auto& sensor : sensors) {
-      Serial.println("Processing sensor " + String(sensorNum++));
+      if (!sensor) continue;
       
-      if (!sensor) {
-        Serial.println("ERROR: Null sensor pointer!");
-        continue;
-      }
+      // Copy strings to stack variables to avoid issues with String lifecycle
+      String sensorType = sensor->getType();
+      String sensorName = sensor->getName();
+      String sensorTech = sensor->getTechnology();
+      int sensorIndex = sensor->getIndex();
       
-      String type = sensor->getType();
-      Serial.println("Sensor type: " + type);
-      
-      JsonArray arr = (*doc)[type];
+      JsonArray arr = (*doc)[sensorType.c_str()];
       if(arr.isNull()) {
-        arr = doc->createNestedArray(type);
+        arr = doc->createNestedArray(sensorType.c_str());
       }
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
-      
-      // Manually add fields to avoid any virtual method issues
-      sensorObj["name"] = sensor->getName();
-      sensorObj["index"] = sensor->getIndex();
-      sensorObj["type"] = type;
-      sensorObj["technology"] = sensor->getTechnology();
-      
-      Serial.println("Sensor " + String(sensorNum-1) + " added");
+      sensorObj["name"] = sensorName.c_str();
+      sensorObj["index"] = sensorIndex;
+      sensorObj["type"] = sensorType.c_str();
+      sensorObj["technology"] = sensorTech.c_str();
     }
 
-    Serial.println("Serializing JSON...");
     String output;
-    output.reserve(400);  // Pre-allocate to avoid reallocation
-    serializeJson(*doc, output);
+    output.reserve(350);  // Pre-allocate
+    size_t len = serializeJson(*doc, output);
     
     // Free heap memory immediately
     delete doc;
     doc = nullptr;
     
-    Serial.println("JSON serialized, size: " + String(output.length()));
-    
-    // Publish to registration request topic
-    const char* topicStr = "sensors/register/request";
-    Serial.print("Publishing to: ");
-    Serial.println(topicStr);
-    
-    if (!mqttClient.connected()) {
-      Serial.println("ERROR: MQTT not connected!");
+    if (len == 0) {
+      Serial.println("Failed to serialize JSON");
       return false;
     }
     
-    Serial.println("Attempting publish...");
-    bool result = mqttClient.publish(topicStr, output.c_str());
+    Serial.print("JSON size: ");
+    Serial.println(len);
+    
+    // Publish to registration request topic
+    String topic = String(MQTT_TOPIC_REGISTER_SENSORS) + "request";
+    bool result = publish(topic, output);
     
     if (result) {
-      Serial.println("Published successfully");
       waitingForResponse = true;
       responseTimeout = millis();
       Serial.println("Sensors registration request sent, waiting for response...");
