@@ -82,21 +82,38 @@ public:
   }
 
   String toJson() const override {
-    // Build registration JSON payload
-    DynamicJsonDocument doc(4096);
-    doc["name"] = name;
-    doc["index"] = index;
-    doc["type"] = type;
-    doc["technology"] = technology;
-    doc["trigger_pin"] = trigPin;
-    doc["echo_pin"] = echoPin;
-    doc["is_occupied"] = occupied;
-    doc["current_distance"] = lastDistance;
-    doc["last_updated"] = isoTime;
+    // Build registration JSON payload - use smaller doc, heap allocation
+    DynamicJsonDocument* doc = new DynamicJsonDocument(512);
+    if (!doc) {
+      return "{}";  // Return empty object on allocation failure
+    }
+    
+    (*doc)["name"] = name;
+    (*doc)["index"] = index;
+    (*doc)["type"] = type;
+    (*doc)["technology"] = technology;
+    (*doc)["trigger_pin"] = trigPin;
+    (*doc)["echo_pin"] = echoPin;
+    (*doc)["is_occupied"] = occupied;
+    (*doc)["current_distance"] = lastDistance;
+    (*doc)["last_updated"] = isoTime;
 
     String payload;
-    serializeJson(doc, payload);
+    serializeJson(*doc, payload);
+    delete doc;  // Free heap memory
     return payload;
+  }
+
+  void toJsonObject(JsonObject& obj) const override {
+    obj["name"] = name;
+    obj["index"] = index;
+    obj["type"] = type;
+    obj["technology"] = technology;
+    obj["trigger_pin"] = trigPin;
+    obj["echo_pin"] = echoPin;
+    obj["is_occupied"] = occupied;
+    obj["current_distance"] = lastDistance;
+    obj["last_updated"] = isoTime;
   }
 };
 }

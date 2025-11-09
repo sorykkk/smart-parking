@@ -2,6 +2,8 @@
 #define SENSOR_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
+
 namespace FindSpot {
 class ISensor {
 protected:
@@ -12,6 +14,7 @@ protected:
 public:
     virtual ~ISensor() = default;
     virtual String toJson() const = 0;
+    virtual void toJsonObject(JsonObject& obj) const = 0;  // New method for direct JSON building
     virtual String getName() const = 0;
     virtual String getType() const = 0;
     virtual String getTechnology() const = 0;

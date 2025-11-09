@@ -243,13 +243,9 @@ public:
       }
       
       JsonObject sensorObj = arr.createNestedObject();
-      // Parse the sensor JSON and add device_id
-      StaticJsonDocument<512> sensorDoc;
-      deserializeJson(sensorDoc, sensor->toJson());
       sensorObj["device_id"] = deviceId;
-      for (JsonPair kv : sensorDoc.as<JsonObject>()) {
-        sensorObj[kv.key()] = kv.value();
-      }
+      // Populate directly without string parsing
+      sensor->toJsonObject(sensorObj);
     }
 
     String output;

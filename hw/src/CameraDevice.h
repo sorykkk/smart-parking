@@ -98,21 +98,38 @@ public:
     // do nothing yet
   }
 
-  String toJson() const {
-    DynamicJsonDocument doc(4096);
-    doc["name"] = name;
-    doc["index"] = index;
-    doc["type"] = type;
-    doc["technology"] = technology;
-    doc["resolution"] = frameSizeToString(frameSize);
-    doc["jpeg_quality"] = jpegQuality;
-    doc["image_size"] = lastImageSize;
-    doc["image_base64"] = lastImageBase64;
-    doc["last_updated"] = isoTime;
+  String toJson() const override {
+    DynamicJsonDocument* doc = new DynamicJsonDocument(512);
+    if (!doc) {
+      return "{}";
+    }
+    
+    (*doc)["name"] = name;
+    (*doc)["index"] = index;
+    (*doc)["type"] = type;
+    (*doc)["technology"] = technology;
+    (*doc)["resolution"] = frameSizeToString(frameSize);
+    (*doc)["jpeg_quality"] = jpegQuality;
+    (*doc)["image_size"] = lastImageSize;
+    (*doc)["image_base64"] = lastImageBase64;
+    (*doc)["last_updated"] = isoTime;
 
     String payload;
-    serializeJson(doc, payload);
+    serializeJson(*doc, payload);
+    delete doc;
     return payload;
+  }
+
+  void toJsonObject(JsonObject& obj) const override {
+    obj["name"] = name;
+    obj["index"] = index;
+    obj["type"] = type;
+    obj["technology"] = technology;
+    obj["resolution"] = frameSizeToString(frameSize);
+    obj["jpeg_quality"] = jpegQuality;
+    obj["image_size"] = lastImageSize;
+    obj["image_base64"] = lastImageBase64;
+    obj["last_updated"] = isoTime;
   }
 
 private:
