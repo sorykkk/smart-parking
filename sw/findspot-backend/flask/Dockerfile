@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install mosquitto-clients for mosquitto_passwd command
+# Install mosquitto (provides mosquitto_passwd) and mosquitto-clients for pub/sub testing
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends mosquitto-clients && \
+    apt-get install -y --no-install-recommends mosquitto mosquitto-clients && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
