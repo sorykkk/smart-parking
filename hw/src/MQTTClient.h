@@ -256,23 +256,24 @@ public:
     for (const auto& sensor : sensors) {
       if (!sensor) continue;
       
-      // Copy strings to stack variables to avoid issues with String lifecycle
+      // Get sensor properties - DON'T use .c_str(), let ArduinoJson copy the Strings
       String sensorType = sensor->getType();
       String sensorName = sensor->getName();
       String sensorTech = sensor->getTechnology();
       int sensorIndex = sensor->getIndex();
       
-      JsonArray arr = (*doc)[sensorType.c_str()];
+      // Use String directly, NOT .c_str() - this forces ArduinoJson to COPY the data
+      JsonArray arr = (*doc)[sensorType];
       if(arr.isNull()) {
-        arr = doc->createNestedArray(sensorType.c_str());
+        arr = doc->createNestedArray(sensorType);
       }
       
       JsonObject sensorObj = arr.createNestedObject();
       sensorObj["device_id"] = deviceId;
-      sensorObj["name"] = sensorName.c_str();
+      sensorObj["name"] = sensorName;  // ArduinoJson will copy the String
       sensorObj["index"] = sensorIndex;
-      sensorObj["type"] = sensorType.c_str();
-      sensorObj["technology"] = sensorTech.c_str();
+      sensorObj["type"] = sensorType;  // ArduinoJson will copy the String
+      sensorObj["technology"] = sensorTech;  // ArduinoJson will copy the String
     }
 
     String output;
