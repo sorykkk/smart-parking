@@ -98,10 +98,14 @@ private:
       Serial.println("connected");
       Serial.println("MQTT User: " + mqttUser);
       
-      // Subscribe to registration response topic
+      // Subscribe to registration response topics
       String regResponseTopic = String(MQTT_TOPIC_REGISTER_DEVICE) + macAddress + "/response";
       mqttClient.subscribe(regResponseTopic.c_str());
       Serial.println("Subscribed to: " + regResponseTopic);
+      
+      String sensorsRegResponseTopic = String(MQTT_TOPIC_REGISTER_SENSORS) + macAddress + "/response";
+      mqttClient.subscribe(sensorsRegResponseTopic.c_str());
+      Serial.println("Subscribed to: " + sensorsRegResponseTopic);
       
       return true;
     } else {

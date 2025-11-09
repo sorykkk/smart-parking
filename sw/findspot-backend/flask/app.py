@@ -344,10 +344,10 @@ def process_sensors_registration(mqtt_client, data):
             
             db.session.commit()
             
-            print(f"Sensors registered for {device_id}: {sensors_count} sensors and {cameras_count} cameras")
+            print(f"Sensors registered for device {device_id}: {sensors_count} sensors and {cameras_count} cameras")
             
-            # Send response back to device via MQTT  
-            response_topic = f"device/register/{device.mac_address}/response"
+            # Send response back to device via MQTT - use sensors/register topic  
+            response_topic = f"sensors/register/{device.mac_address}/response"
             response_payload = {
                 'status': 'registered',
                 'sensors_registered': sensors_count,
@@ -364,7 +364,7 @@ def process_sensors_registration(mqtt_client, data):
             
             # Send error response
             if 'device' in locals() and device:
-                response_topic = f"device/register/{device.mac_address}/response"
+                response_topic = f"sensors/register/{device.mac_address}/response"
                 response_payload = {
                     'status': 'error',
                     'message': str(e)
