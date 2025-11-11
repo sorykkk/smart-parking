@@ -207,7 +207,7 @@
 		</div>
 	</header>
 	
-	<main class="container">
+	<main class="main-content">
 		{#if loading}
 			<div class="loading">
 				<div class="spinner"></div>
@@ -289,20 +289,20 @@
 	header {
 		background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 		color: white;
-		padding: 1.5rem 0;
+		padding: 0.75rem 0;
 		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 	}
 	
 	h1 {
 		margin: 0;
-		font-size: 2rem;
+		font-size: 1.5rem;
 		font-weight: 700;
 	}
 	
 	.subtitle {
-		margin: 0.25rem 0 0 0;
+		margin: 0.15rem 0 0 0;
 		opacity: 0.9;
-		font-size: 0.95rem;
+		font-size: 0.85rem;
 	}
 	
 	.container {
@@ -314,12 +314,20 @@
 	
 	main {
 		flex: 1;
+		padding: 0;
+	}
+
+	.main-content {
+		max-width: 1200px;
+		margin: 0 auto;
 		padding: 1.5rem 1rem;
+		width: 100%;
 	}
 	
 	.loading, .error {
 		text-align: center;
 		padding: 3rem 1rem;
+		margin: 0 1rem;
 	}
 	
 	.spinner {
@@ -357,14 +365,15 @@
 	
 	.map-section {
 		margin-bottom: 2rem;
-		border-radius: 12px;
+		border-radius: 0;
 		overflow: hidden;
-		box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+		box-shadow: none;
 		position: relative;
 	}
 
 	.locations-section {
 		margin-top: 2rem;
+		padding: 0 1rem;
 	}
 
 	.locations-section h2 {
@@ -481,17 +490,19 @@
 		}
 
 		.route-info {
-			flex-direction: column;
-			align-items: stretch;
+			flex-direction: row;
+			align-items: center;
 			gap: 0.75rem;
 		}
 
 		.route-details {
-			text-align: center;
+			text-align: left;
+			flex: 1;
 		}
 
 		.cancel-btn {
-			width: 100%;
+			width: auto;
+			flex-shrink: 0;
 		}
 
 		/* Hide locations section on mobile to focus on map */
@@ -499,14 +510,25 @@
 			display: none;
 		}
 
+		.main-content {
+			padding: 0;
+			margin: 0;
+			max-width: none;
+		}
+
 		.map-section {
-			margin-bottom: 0;
+			margin: 0;
 			border-radius: 0;
-			height: calc(100vh - 120px);
+			height: calc(100vh - 80px);
 		}
 
 		main {
 			padding: 0;
+		}
+
+		/* Remove container padding on mobile for header too */
+		header .container {
+			padding: 0 1rem;
 		}
 	}
 </style>

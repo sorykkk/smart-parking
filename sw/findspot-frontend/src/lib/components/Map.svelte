@@ -298,12 +298,15 @@
 		width: 100%;
 		height: 400px;
 		z-index: 0;
+		border: none;
+		margin: 0;
+		padding: 0;
 	}
 	
 	/* Mobile full-screen map */
 	@media (max-width: 640px) {
 		.map {
-			height: calc(100vh - 140px); /* Full screen minus header */
+			height: calc(100vh - 100px); /* Full screen minus smaller header */
 			min-height: 500px;
 		}
 	}
