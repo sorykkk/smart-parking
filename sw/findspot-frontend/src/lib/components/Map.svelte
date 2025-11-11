@@ -16,6 +16,11 @@
 	let userMarker: any = null;
 	let routeControl: any = null;
 	let L: any;
+	let showRecenterButton = false;
+	let lastUserCenterZoom = 13;
+	let autoFollowUser = false;
+	let watchId: number | null = null;
+	let userDraggedMap = false;
 	
 	onMount(async () => {
 		if (!browser) return;
@@ -43,7 +48,20 @@
 		// Add user location as a circle if available
 		if (userLocation) {
 			updateUserLocation();
+			lastUserCenterZoom = 13;
 		}
+		
+		// Add map event listeners to track when user moves away from their location
+		map.on('moveend', checkIfNeedRecenter);
+		map.on('zoomend', checkIfNeedRecenter);
+		
+		// Add drag event listeners to detect when user manually moves the map
+		map.on('dragstart', () => {
+			if (autoFollowUser) {
+				userDraggedMap = true;
+				console.log('🖱️ User dragged map - pausing auto-follow');
+			}
+		});
 		
 		updateMarkers();
 		
@@ -170,6 +188,97 @@
 		dispatch('locationSelected', location);
 	}
 
+	function checkIfNeedRecenter() {
+		if (!map || !userLocation) return;
+		
+		const center = map.getCenter();
+		const zoom = map.getZoom();
+		const distance = map.distance(center, [userLocation.lat, userLocation.lon]);
+		
+		// Show recenter button if:
+		// 1. User is far from their location or zoomed out, OR
+		// 2. In auto-follow mode but user has dragged the map
+		const distanceThreshold = 500; // 500 meters
+		const zoomThreshold = 12; // Below this zoom level
+		
+		showRecenterButton = distance > distanceThreshold || zoom < zoomThreshold || 
+			(autoFollowUser && userDraggedMap);
+	}
+
+	function recenterMap() {
+		if (!map || !userLocation) return;
+		
+		// Use driving zoom level (16) if in drive mode (showing route), otherwise use normal zoom
+		const zoomLevel = showRoute ? 16 : lastUserCenterZoom;
+		
+		// Re-enable auto-follow if we're in drive mode
+		if (showRoute) {
+			userDraggedMap = false;
+			console.log('🎯 Re-enabled auto-follow mode');
+		}
+		
+		map.setView([userLocation.lat, userLocation.lon], zoomLevel, {
+			animate: true,
+			duration: 1
+		});
+		
+		// Hide the button after recentering
+		showRecenterButton = false;
+	}
+
+	function startAutoFollow() {
+		if (!browser || !navigator.geolocation) {
+			console.warn('Geolocation not available for auto-follow');
+			return;
+		}
+
+		autoFollowUser = true;
+		userDraggedMap = false;
+		
+		console.log('🚗 Starting auto-follow mode');
+
+		// Start watching location with high accuracy
+		watchId = navigator.geolocation.watchPosition(
+			(position) => {
+				const newLocation = {
+					lat: position.coords.latitude,
+					lon: position.coords.longitude
+				};
+				
+				// Update user location
+				userLocation = newLocation;
+				updateUserLocation();
+				
+				// Auto-center map on new location only if user hasn't dragged the map
+				if (map && autoFollowUser && !userDraggedMap) {
+					map.setView([newLocation.lat, newLocation.lon], 16, {
+						animate: true,
+						duration: 0.5
+					});
+				}
+			},
+			(error) => {
+				console.error('Auto-follow location error:', error);
+			},
+			{
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 2000
+			}
+		);
+	}
+
+	function stopAutoFollow() {
+		if (watchId !== null) {
+			navigator.geolocation.clearWatch(watchId);
+			watchId = null;
+		}
+		
+		autoFollowUser = false;
+		userDraggedMap = false;
+		console.log('🛑 Auto-follow mode stopped');
+	}
+
 	async function showRouteToLocation(location: any) {
 		if (!map || !L || !userLocation) return;
 		
@@ -223,6 +332,9 @@
 						console.log('🎯 Map centered on user location for navigation');
 					}
 					
+					// Start auto-follow mode for navigation
+					startAutoFollow();
+					
 				} else {
 					throw new Error('No route found in response');
 				}
@@ -251,6 +363,9 @@
 				map.setView([userLocation.lat, userLocation.lon], 16);
 				console.log('🎯 Map centered on user location (fallback route)');
 			}
+			
+			// Start auto-follow mode for navigation
+			startAutoFollow();
 		}
 		
 		// Remove the old fit bounds code that showed both points
@@ -265,6 +380,9 @@
 			routeControl.remove();
 			routeControl = null;
 		}
+		
+		// Stop auto-follow mode when route is cleared
+		stopAutoFollow();
 		
 		// Reset map view to user location with moderate zoom
 		if (userLocation && map) {
@@ -289,11 +407,35 @@
 	$: if (map && !showRoute && L) {
 		clearRoute();
 	}
+
+	// Cleanup on component destroy
+	import { onDestroy } from 'svelte';
+	
+	onDestroy(() => {
+		stopAutoFollow();
+	});
 </script>
 
-<div bind:this={mapContainer} class="map"></div>
+<div class="map-container">
+	<div bind:this={mapContainer} class="map"></div>
+	
+	{#if showRecenterButton && userLocation}
+		<button 
+			on:click={recenterMap}
+			class="recenter-btn"
+			title="Return to my location"
+		>
+			📍
+		</button>
+	{/if}
+</div>
 
 <style>
+	.map-container {
+		position: relative;
+		width: 100%;
+	}
+	
 	.map {
 		width: 100%;
 		height: 400px;
@@ -303,11 +445,46 @@
 		padding: 0;
 	}
 	
+	.recenter-btn {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		z-index: 1000;
+		background: white;
+		border: 2px solid #ddd;
+		border-radius: 50%;
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+		font-size: 18px;
+		transition: all 0.2s ease;
+	}
+	
+	.recenter-btn:hover {
+		background: #f0f9ff;
+		border-color: #3b82f6;
+		transform: scale(1.05);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+	
+	.recenter-btn:active {
+		transform: scale(0.95);
+	}
+	
 	/* Mobile full-screen map */
 	@media (max-width: 640px) {
 		.map {
 			height: calc(100vh - 100px); /* Full screen minus smaller header */
 			min-height: 500px;
+		}
+		
+		.recenter-btn {
+			top: 15px;
+			right: 15px;
 		}
 	}
 	
