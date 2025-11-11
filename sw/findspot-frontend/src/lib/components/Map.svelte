@@ -217,6 +217,12 @@
 					const duration = Math.round(data.routes[0].duration / 60); // minutes
 					console.log(`Route: ${distance}km, ${duration}min`);
 					
+					// Center map on user location for driving view
+					if (userLocation) {
+						map.setView([userLocation.lat, userLocation.lon], 16); // Zoom level 16 for driving
+						console.log('🎯 Map centered on user location for navigation');
+					}
+					
 				} else {
 					throw new Error('No route found in response');
 				}
@@ -239,13 +245,19 @@
 				opacity: 0.7,
 				dashArray: '10, 10'
 			}).addTo(map);
+			
+			// Even with fallback, center on user location
+			if (userLocation) {
+				map.setView([userLocation.lat, userLocation.lon], 16);
+				console.log('🎯 Map centered on user location (fallback route)');
+			}
 		}
 		
-		// Fit map to show both points
-		const group = L.featureGroup([userMarker, ...markers.filter(m => 
-			m.getLatLng().lat === location.latitude && m.getLatLng().lng === location.longitude
-		)]);
-		map.fitBounds(group.getBounds().pad(0.1));
+		// Remove the old fit bounds code that showed both points
+		// const group = L.featureGroup([userMarker, ...markers.filter(m => 
+		// 	m.getLatLng().lat === location.latitude && m.getLatLng().lng === location.longitude
+		// )]);
+		// map.fitBounds(group.getBounds().pad(0.1));
 	}
 
 	function clearRoute() {
@@ -254,9 +266,10 @@
 			routeControl = null;
 		}
 		
-		// Reset map view to user location
+		// Reset map view to user location with moderate zoom
 		if (userLocation && map) {
 			map.setView([userLocation.lat, userLocation.lon], 13);
+			console.log('🗺️ Map reset to overview mode');
 		}
 	}
 
