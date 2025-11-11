@@ -23,6 +23,10 @@
 	let loading = true;
 	let error: string | null = null;
 	let socket: any = null;
+	let selectedLocation: ParkingLocation | null = null;
+	let showRoute = false;
+	let isSearchingRoute = false;
+	let selectionMethod: 'nearest' | 'manual' | null = null;
 	
 	async function getUserLocation() {
 		try {
@@ -42,16 +46,30 @@
 	async function fetchLocations() {
 		try {
 			loading = true;
-			let url = `${API_URL}/api/locations`;
-			
-			if (userLocation) {
-				url += `?lat=${userLocation.lat}&lon=${userLocation.lon}&radius=10`;
-			}
+			// Always fetch all locations first to show in database
+			let url = `${API_URL}/api/parking/status`;
 			
 			const response = await fetch(url);
 			if (!response.ok) throw new Error('Failed to fetch locations');
 			
-			locations = await response.json();
+			const data = await response.json();
+			// Transform the data to match frontend expectations
+			locations = data.map((device: any) => ({
+				id: device.id,
+				name: device.name,
+				latitude: device.latitude,
+				longitude: device.longitude,
+				address: device.location || 'Address not available',
+				total_spots: device.parking_spots?.length || 0,
+				available_spots: device.parking_spots?.filter((spot: any) => !spot.is_occupied).length || 0,
+				occupancy_rate: device.parking_spots?.length > 0 
+					? (device.parking_spots.filter((spot: any) => spot.is_occupied).length / device.parking_spots.length) * 100 
+					: 0
+			})).filter((location: ParkingLocation) => 
+				// Only show locations that have valid coordinates
+				location.latitude && location.longitude
+			);
+			
 			error = null;
 		} catch (err) {
 			console.error('Error fetching locations:', err);
@@ -110,6 +128,62 @@
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 		return R * c;
 	}
+
+	function findNearestParking() {
+		if (!userLocation) {
+			alert('Location not available. Please enable location services.');
+			return;
+		}
+
+		// Filter active locations (have available spots)
+		const activeLocations = locations.filter(location => location.available_spots > 0);
+		
+		if (activeLocations.length === 0) {
+			alert('No available parking spots found anywhere. All parking spots are currently occupied or inactive.');
+			return;
+		}
+
+		// Find the nearest active location
+		let nearest = activeLocations[0];
+		let minDistance = calculateDistance(
+			userLocation.lat, userLocation.lon, 
+			nearest.latitude, nearest.longitude
+		);
+
+		for (const location of activeLocations) {
+			const distance = calculateDistance(
+				userLocation.lat, userLocation.lon,
+				location.latitude, location.longitude
+			);
+			
+			if (distance < minDistance) {
+				minDistance = distance;
+				nearest = location;
+			}
+		}
+
+		// Set selected location and show route
+		selectedLocation = nearest;
+		showRoute = true;
+		isSearchingRoute = true;
+		selectionMethod = 'nearest';
+	}
+
+	function handleLocationSelected(event: CustomEvent) {
+		const location = event.detail;
+		selectedLocation = location;
+		showRoute = true;
+		isSearchingRoute = true;
+		selectionMethod = 'manual';
+		console.log('Manually selected location:', location.name);
+	}
+
+	function cancelRoute() {
+		selectedLocation = null;
+		showRoute = false;
+		isSearchingRoute = false;
+		selectionMethod = null;
+	}
 	
 	$: sortedLocations = userLocation 
 		? [...locations].sort((a, b) => {
@@ -146,7 +220,39 @@
 			</div>
 		{:else}
 			<div class="map-section">
-				<Map {locations} {userLocation} />
+				<Map 
+					{locations} 
+					{userLocation} 
+					{selectedLocation} 
+					{showRoute}
+					on:locationSelected={handleLocationSelected}
+				/>
+				
+				<div class="map-controls">
+					{#if !isSearchingRoute}
+						<button 
+							class="find-parking-btn"
+							on:click={findNearestParking}
+							disabled={!userLocation}
+						>
+							🎯 Find Nearest Parking
+						</button>
+					{:else}
+						<div class="route-info">
+							<div class="route-details">
+								<h3>📍 Route to: {selectedLocation?.name}</h3>
+								<p>{selectedLocation?.address}</p>
+								<p><strong>{selectedLocation?.available_spots}/{selectedLocation?.total_spots}</strong> spots available</p>
+								<p class="selection-method">
+									{selectionMethod === 'nearest' ? '🎯 Auto-selected (nearest)' : '🧭 Manually selected'}
+								</p>
+							</div>
+							<button class="cancel-btn" on:click={cancelRoute}>
+								❌ Cancel Route
+							</button>
+						</div>
+					{/if}
+				</div>
 			</div>
 			
 			<div class="locations-section">
@@ -254,11 +360,97 @@
 		border-radius: 12px;
 		overflow: hidden;
 		box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+		position: relative;
 	}
-	
+
+	.locations-section {
+		margin-top: 2rem;
+	}
+
 	.locations-section h2 {
 		margin: 0 0 1rem 0;
 		color: #1f2937;
+	}
+
+	.map-controls {
+		position: absolute;
+		bottom: 1rem;
+		left: 1rem;
+		right: 1rem;
+		z-index: 1000;
+	}
+
+	.find-parking-btn {
+		width: 100%;
+		padding: 1rem 1.5rem;
+		background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+		color: white;
+		border: none;
+		border-radius: 12px;
+		font-size: 1.1rem;
+		font-weight: 600;
+		cursor: pointer;
+		box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+		transition: all 0.2s ease;
+	}
+
+	.find-parking-btn:hover:not(:disabled) {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+	}
+
+	.find-parking-btn:disabled {
+		background: #9ca3af;
+		cursor: not-allowed;
+		box-shadow: none;
+	}
+
+	.route-info {
+		background: white;
+		border-radius: 12px;
+		padding: 1rem;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.route-details h3 {
+		margin: 0 0 0.25rem 0;
+		font-size: 1rem;
+		color: #1f2937;
+	}
+
+	.route-details p {
+		margin: 0.125rem 0;
+		font-size: 0.875rem;
+		color: #6b7280;
+	}
+
+	.selection-method {
+		font-size: 0.8rem !important;
+		font-style: italic;
+		color: #2563eb !important;
+		margin-top: 0.25rem !important;
+	}
+
+	.cancel-btn {
+		padding: 0.75rem 1rem;
+		background: #ef4444;
+		color: white;
+		border: none;
+		border-radius: 8px;
+		font-size: 0.9rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		white-space: nowrap;
+	}
+
+	.cancel-btn:hover {
+		background: #dc2626;
+		transform: translateY(-1px);
 	}
 	
 	.locations-grid {
@@ -266,7 +458,7 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 		gap: 1rem;
 	}
-	
+
 	.no-data {
 		text-align: center;
 		padding: 2rem;
@@ -280,6 +472,41 @@
 		
 		.locations-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.map-controls {
+			bottom: 0.5rem;
+			left: 0.5rem;
+			right: 0.5rem;
+		}
+
+		.route-info {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.75rem;
+		}
+
+		.route-details {
+			text-align: center;
+		}
+
+		.cancel-btn {
+			width: 100%;
+		}
+
+		/* Hide locations section on mobile to focus on map */
+		.locations-section {
+			display: none;
+		}
+
+		.map-section {
+			margin-bottom: 0;
+			border-radius: 0;
+			height: calc(100vh - 120px);
+		}
+
+		main {
+			padding: 0;
 		}
 	}
 </style>
