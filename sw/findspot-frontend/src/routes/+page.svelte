@@ -5,7 +5,7 @@
 	import ParkingCard from '$lib/components/ParkingCard.svelte';
 	import { Geolocation } from '@capacitor/geolocation';
 	
-	const API_URL = import.meta.env.VITE_API_URL || 'https://your-raspberry-pi-domain.com';
+	const API_URL = import.meta.env.VITE_API_URL || 'http://192.168.1.103:5000';
 	
 	interface ParkingLocation {
 		id: number;
@@ -30,27 +30,47 @@
 	
 	async function getUserLocation() {
 		try {
-			const position = await Geolocation.getCurrentPosition();
+			console.log('🌍 Requesting user location...');
+			const position = await Geolocation.getCurrentPosition({
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 0
+			});
 			userLocation = {
 				lat: position.coords.latitude,
 				lon: position.coords.longitude
 			};
-			console.log('User location:', userLocation);
+			console.log('✅ User location acquired:', userLocation);
 		} catch (err) {
-			console.error('Error getting location:', err);
+			console.error('❌ Error getting location:', err);
+			console.error('Error code:', err.code);
+			console.error('Error message:', err.message);
+			
+			// Check if it's a permission error
+			if (err.code === 1) {
+				console.warn('⚠️ Location permission denied by user');
+			} else if (err.code === 2) {
+				console.warn('⚠️ Location position unavailable');
+			} else if (err.code === 3) {
+				console.warn('⚠️ Location request timeout');
+			}
+			
 			// Default to Cluj-Napoca if location not available
 			userLocation = { lat: 46.7712, lon: 23.6236 };
+			console.log('🏙️ Using default location (Cluj-Napoca):', userLocation);
 		}
 	}
 	
-	async function fetchLocations() {
+	async function fetchLocations(retryCount = 0) {
 		try {
 			loading = true;
 			// Always fetch all locations first to show in database
 			let url = `${API_URL}/api/parking/status`;
 			
+			console.log(`Attempting to fetch from: ${url} (attempt ${retryCount + 1})`);
+			
 			const response = await fetch(url);
-			if (!response.ok) throw new Error('Failed to fetch locations');
+			if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			
 			const data = await response.json();
 			// Transform the data to match frontend expectations
@@ -70,10 +90,20 @@
 				location.latitude && location.longitude
 			);
 			
+			console.log('Successfully loaded locations:', locations.length);
 			error = null;
 		} catch (err) {
 			console.error('Error fetching locations:', err);
-			error = 'Failed to load parking locations. Please check your connection.';
+			
+			// Auto-retry on first load (up to 3 times with increasing delays)
+			if (retryCount < 3) {
+				const delay = (retryCount + 1) * 1000; // 1s, 2s, 3s delays
+				console.log(`Retrying in ${delay}ms...`);
+				setTimeout(() => fetchLocations(retryCount + 1), delay);
+				return;
+			}
+			
+			error = `Failed to load parking locations. Please check your connection. (${err instanceof Error ? err.message : 'Unknown error'})`;
 		} finally {
 			loading = false;
 		}
@@ -106,9 +136,16 @@
 	}
 	
 	onMount(async () => {
+		console.log('Page mounted, initializing...');
+		
+		// Small delay to ensure page is fully loaded
+		await new Promise(resolve => setTimeout(resolve, 100));
+		
 		await getUserLocation();
 		await fetchLocations();
-		initWebSocket();
+		
+		// Small delay before websocket to ensure backend is ready
+		setTimeout(() => initWebSocket(), 500);
 	});
 	
 	onDestroy(() => {
@@ -278,12 +315,18 @@
 		padding: 0;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 		background: #f5f7fa;
+		overflow: hidden;
+	}
+	
+	:global(html) {
+		overflow: hidden;
 	}
 	
 	.app {
-		min-height: 100vh;
+		height: 100vh;
 		display: flex;
 		flex-direction: column;
+		overflow: hidden;
 	}
 	
 	header {
@@ -291,6 +334,7 @@
 		color: white;
 		padding: 0.75rem 0;
 		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		flex-shrink: 0;
 	}
 	
 	h1 {
@@ -315,6 +359,9 @@
 	main {
 		flex: 1;
 		padding: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.main-content {
@@ -322,6 +369,10 @@
 		margin: 0 auto;
 		padding: 1.5rem 1rem;
 		width: 100%;
+		flex: 1;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 	
 	.loading, .error {
@@ -369,11 +420,16 @@
 		overflow: hidden;
 		box-shadow: none;
 		position: relative;
+		flex: 1;
+		min-height: 0;
 	}
 
 	.locations-section {
 		margin-top: 2rem;
 		padding: 0 1rem;
+		overflow-y: auto;
+		flex-shrink: 0;
+		max-height: 400px;
 	}
 
 	.locations-section h2 {
@@ -519,7 +575,8 @@
 		.map-section {
 			margin: 0;
 			border-radius: 0;
-			height: calc(100vh - 80px);
+			flex: 1;
+			height: 100%;
 		}
 
 		main {
