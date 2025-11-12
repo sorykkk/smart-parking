@@ -5,7 +5,7 @@
 	import ParkingCard from '$lib/components/ParkingCard.svelte';
 	import { Geolocation } from '@capacitor/geolocation';
 	
-	const API_URL = import.meta.env.VITE_API_URL || 'https://your-raspberry-pi-domain.com';
+	const API_URL = import.meta.env.VITE_API_URL || 'http://192.168.1.103:5000';
 	
 	interface ParkingLocation {
 		id: number;
@@ -43,14 +43,16 @@
 		}
 	}
 	
-	async function fetchLocations() {
+	async function fetchLocations(retryCount = 0) {
 		try {
 			loading = true;
 			// Always fetch all locations first to show in database
 			let url = `${API_URL}/api/parking/status`;
 			
+			console.log(`Attempting to fetch from: ${url} (attempt ${retryCount + 1})`);
+			
 			const response = await fetch(url);
-			if (!response.ok) throw new Error('Failed to fetch locations');
+			if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			
 			const data = await response.json();
 			// Transform the data to match frontend expectations
@@ -70,10 +72,20 @@
 				location.latitude && location.longitude
 			);
 			
+			console.log('Successfully loaded locations:', locations.length);
 			error = null;
 		} catch (err) {
 			console.error('Error fetching locations:', err);
-			error = 'Failed to load parking locations. Please check your connection.';
+			
+			// Auto-retry on first load (up to 3 times with increasing delays)
+			if (retryCount < 3) {
+				const delay = (retryCount + 1) * 1000; // 1s, 2s, 3s delays
+				console.log(`Retrying in ${delay}ms...`);
+				setTimeout(() => fetchLocations(retryCount + 1), delay);
+				return;
+			}
+			
+			error = `Failed to load parking locations. Please check your connection. (${err instanceof Error ? err.message : 'Unknown error'})`;
 		} finally {
 			loading = false;
 		}
@@ -106,9 +118,16 @@
 	}
 	
 	onMount(async () => {
+		console.log('Page mounted, initializing...');
+		
+		// Small delay to ensure page is fully loaded
+		await new Promise(resolve => setTimeout(resolve, 100));
+		
 		await getUserLocation();
 		await fetchLocations();
-		initWebSocket();
+		
+		// Small delay before websocket to ensure backend is ready
+		setTimeout(() => initWebSocket(), 500);
 	});
 	
 	onDestroy(() => {
