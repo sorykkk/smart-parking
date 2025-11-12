@@ -30,16 +30,34 @@
 	
 	async function getUserLocation() {
 		try {
-			const position = await Geolocation.getCurrentPosition();
+			console.log('🌍 Requesting user location...');
+			const position = await Geolocation.getCurrentPosition({
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 0
+			});
 			userLocation = {
 				lat: position.coords.latitude,
 				lon: position.coords.longitude
 			};
-			console.log('User location:', userLocation);
+			console.log('✅ User location acquired:', userLocation);
 		} catch (err) {
-			console.error('Error getting location:', err);
+			console.error('❌ Error getting location:', err);
+			console.error('Error code:', err.code);
+			console.error('Error message:', err.message);
+			
+			// Check if it's a permission error
+			if (err.code === 1) {
+				console.warn('⚠️ Location permission denied by user');
+			} else if (err.code === 2) {
+				console.warn('⚠️ Location position unavailable');
+			} else if (err.code === 3) {
+				console.warn('⚠️ Location request timeout');
+			}
+			
 			// Default to Cluj-Napoca if location not available
 			userLocation = { lat: 46.7712, lon: 23.6236 };
+			console.log('🏙️ Using default location (Cluj-Napoca):', userLocation);
 		}
 	}
 	
