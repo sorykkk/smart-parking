@@ -17,7 +17,7 @@
 	let routeControl: any = null;
 	let L: any;
 	let showRecenterButton = false;
-	let lastUserCenterZoom = 13;
+	let lastUserCenterZoom = 16;
 	let autoFollowUser = false;
 	let watchId: number | null = null;
 	let userDraggedMap = false;
@@ -37,7 +37,7 @@
 			? [userLocation.lat, userLocation.lon]
 			: [46.7712, 23.6236]; // Cluj-Napoca default
 			
-		map = L.map(mapContainer).setView(defaultCenter, 13);
+		map = L.map(mapContainer).setView(defaultCenter, 16);
 		
 		// Add OpenStreetMap tiles
 		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -48,7 +48,7 @@
 		// Add user location as a circle if available
 		if (userLocation) {
 			updateUserLocation();
-			lastUserCenterZoom = 13;
+			lastUserCenterZoom = 16;
 		}
 		
 		// Add map event listeners to track when user moves away from their location
@@ -208,8 +208,8 @@
 	function recenterMap() {
 		if (!map || !userLocation) return;
 		
-		// Use driving zoom level (16) if in drive mode (showing route), otherwise use normal zoom
-		const zoomLevel = showRoute ? 16 : lastUserCenterZoom;
+		// Use driving zoom level (18) if in drive mode (showing route), otherwise use normal zoom
+		const zoomLevel = showRoute ? 18 : lastUserCenterZoom;
 		
 		// Re-enable auto-follow if we're in drive mode
 		if (showRoute) {
@@ -251,7 +251,7 @@
 				
 				// Auto-center map on new location only if user hasn't dragged the map
 				if (map && autoFollowUser && !userDraggedMap) {
-					map.setView([newLocation.lat, newLocation.lon], 16, {
+					map.setView([newLocation.lat, newLocation.lon], 18, {
 						animate: true,
 						duration: 0.5
 					});
@@ -328,7 +328,7 @@
 					
 					// Center map on user location for driving view
 					if (userLocation) {
-						map.setView([userLocation.lat, userLocation.lon], 16); // Zoom level 16 for driving
+						map.setView([userLocation.lat, userLocation.lon], 18); // Zoom level 18 for driving
 						console.log('🎯 Map centered on user location for navigation');
 					}
 					
