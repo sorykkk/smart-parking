@@ -297,12 +297,18 @@
 		padding: 0;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 		background: #f5f7fa;
+		overflow: hidden;
+	}
+	
+	:global(html) {
+		overflow: hidden;
 	}
 	
 	.app {
-		min-height: 100vh;
+		height: 100vh;
 		display: flex;
 		flex-direction: column;
+		overflow: hidden;
 	}
 	
 	header {
@@ -310,6 +316,7 @@
 		color: white;
 		padding: 0.75rem 0;
 		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		flex-shrink: 0;
 	}
 	
 	h1 {
@@ -334,6 +341,9 @@
 	main {
 		flex: 1;
 		padding: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.main-content {
@@ -341,6 +351,10 @@
 		margin: 0 auto;
 		padding: 1.5rem 1rem;
 		width: 100%;
+		flex: 1;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 	
 	.loading, .error {
@@ -388,11 +402,16 @@
 		overflow: hidden;
 		box-shadow: none;
 		position: relative;
+		flex: 1;
+		min-height: 0;
 	}
 
 	.locations-section {
 		margin-top: 2rem;
 		padding: 0 1rem;
+		overflow-y: auto;
+		flex-shrink: 0;
+		max-height: 400px;
 	}
 
 	.locations-section h2 {
@@ -538,7 +557,8 @@
 		.map-section {
 			margin: 0;
 			border-radius: 0;
-			height: calc(100vh - 80px);
+			flex: 1;
+			height: 100%;
 		}
 
 		main {
