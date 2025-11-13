@@ -3,8 +3,8 @@
   "appName": "FindSpot",
   "webDir": "build",
   "server": {
-    "androidScheme": "https",
-    "hostname": "findspot.app"
+    "androidScheme": "http",
+    "cleartext": true
   },
   "plugins": {
     "SplashScreen": {
