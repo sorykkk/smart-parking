@@ -5,7 +5,7 @@
 	import ParkingCard from '$lib/components/ParkingCard.svelte';
 	import { Geolocation } from '@capacitor/geolocation';
 	
-	const API_URL = import.meta.env.VITE_API_URL || 'https://192.168.1.103:5000';
+	const API_URL = import.meta.env.VITE_API_URL || 'https://192.168.1.103:8443';
 	
 	interface ParkingLocation {
 		id: number;
