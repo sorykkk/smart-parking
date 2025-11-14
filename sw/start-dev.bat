@@ -1,0 +1,74 @@
+@echo off
+REM FindSpot Local Development Startup Script
+echo ========================================
+echo FindSpot - Local Development Setup
+echo ========================================
+echo.
+
+REM Check if mosquitto is in PATH
+where mosquitto >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Mosquitto not found. Please install Mosquitto MQTT broker.
+    echo Download from: https://mosquitto.org/download/
+    pause
+    exit /b 1
+)
+
+REM Check if Python is available
+where python >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Python not found. Please install Python 3.8+
+    pause
+    exit /b 1
+)
+
+REM Check if Node.js is available
+where node >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Node.js not found. Please install Node.js 18+
+    pause
+    exit /b 1
+)
+
+echo [1/3] Starting MQTT Broker...
+cd findspot-backend\mosquitto
+start "MQTT Broker" mosquitto -c mosquitto.conf -v
+cd ..\..
+timeout /t 2 >nul
+
+echo [2/3] Starting Backend...
+cd findspot-backend\flask
+if not exist venv (
+    echo Creating Python virtual environment...
+    python -m venv venv
+    call venv\Scripts\activate
+    echo Installing dependencies...
+    pip install -r requirements.txt
+) else (
+    call venv\Scripts\activate
+)
+start "Backend - Flask" cmd /k "venv\Scripts\activate && python app.py"
+cd ..\..
+timeout /t 3 >nul
+
+echo [3/3] Starting Frontend...
+cd findspot-frontend
+if not exist node_modules (
+    echo Installing npm dependencies...
+    call npm install
+)
+start "Frontend - Vite" cmd /k "npm run dev"
+cd ..
+
+echo.
+echo ========================================
+echo All services started!
+echo ========================================
+echo.
+echo Frontend: http://localhost:5173
+echo Backend:  http://localhost:5000
+echo MQTT:     localhost:1883
+echo.
+echo Press any key to open frontend in browser...
+pause >nul
+start http://localhost:5173
