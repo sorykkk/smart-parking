@@ -13,6 +13,7 @@
 		latitude: number;
 		longitude: number;
 		address: string;
+		status: string;
 		total_spots: number;
 		available_spots: number;
 		occupancy_rate: number;
@@ -85,6 +86,7 @@
 				latitude: device.latitude,
 				longitude: device.longitude,
 				address: device.location || device.name,
+				status: device.status || 'registered',
 				total_spots: device.parking_spots?.length || 0,
 				available_spots: device.parking_spots?.filter((spot: any) => !spot.is_occupied).length || 0,
 				occupancy_rate: device.parking_spots?.length > 0 
@@ -154,7 +156,13 @@
 		// Handle device status updates
 		socket.on('device_update', (data: any) => {
 			console.log('Device status update:', data);
-			// Update device status in the UI
+			// Update device status in the locations array
+			const locationIndex = locations.findIndex(loc => loc.id === data.device_id);
+			if (locationIndex !== -1) {
+				locations[locationIndex].status = data.status;
+				locations = [...locations]; // Trigger reactivity
+				console.log(`Updated device ${data.device_id} status to ${data.status}`);
+			}
 		});
 		
 		socket.on('disconnect', () => {
