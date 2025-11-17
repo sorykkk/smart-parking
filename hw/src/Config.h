@@ -7,8 +7,7 @@
 
 // ==================== Backend HTTP Configuration ============================ //
 // Backend server settings for device registration
-#define BACKEND_HOST             "192.168.1.101"
-#define BACKEND_PORT             "5000"
+
 #define BACKEND_REGISTER_URL     "api/device/register"
 
 // ==================== Device Configuration ============================ //
