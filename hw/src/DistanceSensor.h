@@ -42,9 +42,25 @@ public:
   /// @brief Calculate the `lastDistance`, and set `occupied` if the parking spot is to consider taken 
   /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
+    bool previousState = occupied;
     lastDistance = getDistance();
     // Occupied when distance is valid AND within the threshold (car is close enough)
     occupied = (lastDistance != INVALID_DISTANCE && lastDistance <= DISTANCE_MAX_CM);
+
+    // Log state change
+    if (occupied != previousState) {
+      Serial.print("Sensor ");
+      Serial.print(name);
+      Serial.print(" (index ");
+      Serial.print(index);
+      Serial.print("): ");
+      Serial.print(previousState ? "occupied" : "free");
+      Serial.print(" -> ");
+      Serial.print(occupied ? "occupied" : "free");
+      Serial.print(" (distance: ");
+      Serial.print(lastDistance);
+      Serial.println("cm)");
+    }
 
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {
