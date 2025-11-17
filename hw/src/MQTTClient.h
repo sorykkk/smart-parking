@@ -119,18 +119,30 @@ public:
       return false;
     }
     
+    // Validate payload
+    if (sensorJson.length() == 0) {
+      Serial.println("Empty payload, cannot publish");
+      return false;
+    }
+    
+    if (sensorJson.length() > 2048) {
+      Serial.println("Payload too large, cannot publish");
+      return false;
+    }
+    
     // Build topic: device/{device_id}/sensors/{sensor_index}
     String topic = "device/" + String(deviceId) + "/sensors/" + String(sensorIndex);
     
-    Serial.println("Publishing to: " + topic);
-    Serial.println("Payload: " + sensorJson);
+    // Convert to c_str early to avoid multiple allocations
+    const char* topicCStr = topic.c_str();
+    const char* payloadCStr = sensorJson.c_str();
     
-    bool result = mqttClient.publish(topic.c_str(), sensorJson.c_str());
+    bool result = mqttClient.publish(topicCStr, payloadCStr);
     
-    if (result) {
-      Serial.println("Published successfully");
-    } else {
-      Serial.println("Publish failed");
+    if (!result) {
+      Serial.print("Publish failed (rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(")");
     }
     
     return result;

@@ -223,18 +223,22 @@ void loop() {
       delay(50);
       yield();
       
+      Serial.print("  Sensor ");
+      Serial.print(i);
+      Serial.print(": ");
+      
       bool currentState = false;
       // Wrap sensor reading in try-catch equivalent (check for crashes)
       currentState = sensors[i]->checkState();
       
+      Serial.print(currentState ? "occupied" : "free");
+      Serial.print(" (was: ");
+      Serial.print(sensorStateVector[i] ? "occupied" : "free");
+      Serial.println(")");
+      
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
-        Serial.print("Sensor ");
-        Serial.print(i);
-        Serial.print(" state changed: ");
-        Serial.print(sensorStateVector[i] ? "occupied" : "free");
-        Serial.print(" -> ");
-        Serial.println(currentState ? "occupied" : "free");
+        Serial.print("    ↳ State changed! Publishing...");
         
         yield();
         
@@ -245,22 +249,18 @@ void loop() {
         }
         
         if (payload.length() > 0 && mqttClient.isConnected()) {
-          Serial.print("Publishing sensor ");
-          Serial.println(i);
-          
           // Add delay to prevent overwhelming MQTT
           delay(100);
           yield();
           
           if (mqttClient.publishSensorData(i, payload)) {
             sensorStateVector[i] = currentState;
-            Serial.print("Sensor ");
-            Serial.print(i);
-            Serial.println(" published");
+            Serial.println(" ✓ Published");
           } else {
-            Serial.print("Failed to publish sensor ");
-            Serial.println(i);
+            Serial.println(" ✗ Failed");
           }
+        } else {
+          Serial.println(" ✗ No payload or disconnected");
         }
         
         // Force free the payload string
