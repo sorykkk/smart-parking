@@ -29,7 +29,7 @@ public:
    * Register device with backend via HTTP
    * Returns device_id and MQTT credentials
    */
-  RegistrationResponse registerDevice(const Device& device) {
+  RegistrationResponse registerDevice(Device& device) {
     RegistrationResponse response;
     response.success = false;
     response.device_id = -1;
