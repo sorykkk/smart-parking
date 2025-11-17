@@ -52,6 +52,9 @@ MQTT_PORT = int(os.getenv('MQTT_PORT', 1883))
 MQTT_USER = os.getenv('MQTT_USER', 'flask_backend')
 MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'backend_password')
 
+# MQTT Broker address for external devices (ESP32)
+MQTT_BROKER_EXTERNAL = os.getenv('MQTT_BROKER_EXTERNAL', MQTT_BROKER)
+
 # ESP32 MQTT Credentials Configuration
 # ESP32 generates and sends its own credentials during registration
 
@@ -364,7 +367,7 @@ def register_iot_device():
                 'device_id': existing_device.id,
                 'mqtt_username': mqtt_username,
                 'mqtt_password': mqtt_password,
-                'mqtt_broker': MQTT_BROKER,
+                'mqtt_broker': MQTT_BROKER_EXTERNAL,
                 'mqtt_port': MQTT_PORT,
                 'sensor_topic': f'device/{existing_device.id}/sensors',
                 'status': existing_device.status,
@@ -409,7 +412,7 @@ def register_iot_device():
             'device_id': new_device.id,
             'mqtt_username': mqtt_username,
             'mqtt_password': mqtt_password,
-            'mqtt_broker': MQTT_BROKER,
+            'mqtt_broker': MQTT_BROKER_EXTERNAL,
             'mqtt_port': MQTT_PORT,
             'sensor_topic': f'device/{new_device.id}/sensors',
             'status': 'registered',
