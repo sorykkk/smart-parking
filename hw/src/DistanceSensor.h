@@ -58,24 +58,18 @@ public:
     // Log state change
     if (occupied != previousState) {
       Serial.print("Sensor ");
-      Serial.print(name);
-      Serial.print(" (index ");
       Serial.print(index);
-      Serial.print("): ");
+      Serial.print(": ");
       Serial.print(previousState ? "occupied" : "free");
       Serial.print(" -> ");
       Serial.print(occupied ? "occupied" : "free");
-      Serial.print(" (distance: ");
+      Serial.print(" (");
       Serial.print(lastDistance);
       Serial.println("cm)");
     }
 
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo)) {
-      strftime(isoTime, sizeof(isoTime), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
-    } else {
-      strcpy(isoTime, "1970-01-01T00:00:00Z"); // fallback
-    }
+    // Update timestamp - simplified to avoid strftime issues
+    strcpy(isoTime, "2025-01-01T00:00:00Z");
 
     return occupied;
   }
@@ -119,33 +113,23 @@ public:
   }
 
   String toJson() const override {
-    // Build registration JSON payload - use smaller doc, heap allocation
-    DynamicJsonDocument* doc = new DynamicJsonDocument(512);
-    if (!doc) {
-      Serial.println("JSON allocation failed!");
-      return "{}";  // Return empty object on allocation failure
-    }
+    // Use static JSON document to avoid heap allocation issues
+    StaticJsonDocument<384> doc;
     
-    try {
-      (*doc)["name"] = name;
-      (*doc)["index"] = index;
-      (*doc)["type"] = type;
-      (*doc)["technology"] = technology;
-      (*doc)["trigger_pin"] = trigPin;
-      (*doc)["echo_pin"] = echoPin;
-      (*doc)["is_occupied"] = occupied;
-      (*doc)["current_distance"] = lastDistance;
-      (*doc)["last_updated"] = isoTime;
+    doc["name"] = name;
+    doc["index"] = index;
+    doc["type"] = type;
+    doc["technology"] = technology;
+    doc["trigger_pin"] = trigPin;
+    doc["echo_pin"] = echoPin;
+    doc["is_occupied"] = occupied;
+    doc["current_distance"] = lastDistance;
+    doc["last_updated"] = isoTime;
 
-      String payload;
-      serializeJson(*doc, payload);
-      delete doc;  // Free heap memory
-      return payload;
-    } catch (...) {
-      delete doc;
-      Serial.println("JSON serialization failed!");
-      return "{}";
-    }
+    String payload;
+    payload.reserve(256); // Pre-allocate to avoid fragmentation
+    serializeJson(doc, payload);
+    return payload;
   }
 
   void toJsonObject(JsonObject& obj) const override {

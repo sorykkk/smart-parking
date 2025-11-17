@@ -195,13 +195,15 @@ void loop() {
     for (size_t i = 0; i < sensors.size(); i++) {
       // Safety check: ensure sensor pointer is valid
       if (!sensors[i]) {
-        Serial.println("Warning: Null sensor at index " + String(i));
+        Serial.print("Warning: Null sensor at index ");
+        Serial.println(i);
         continue;
       }
       
       // Safety check: ensure index is within bounds
       if (i >= sensorStateVector.size()) {
-        Serial.println("Warning: Index out of bounds " + String(i));
+        Serial.print("Warning: Index out of bounds ");
+        Serial.println(i);
         continue;
       }
       
@@ -209,24 +211,23 @@ void loop() {
       delay(50);
       yield();
       
-      bool currentState = false;
-      // Wrap sensor check in try-catch equivalent
-      currentState = sensors[i]->checkState();
+      bool currentState = sensors[i]->checkState();
       
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
-        Serial.println("Sensor " + String(i) + " state changed: " + 
-                      String(sensorStateVector[i] ? "occupied" : "free") + " -> " +
-                      String(currentState ? "occupied" : "free"));
+        Serial.print("Sensor ");
+        Serial.print(i);
+        Serial.print(" state changed: ");
+        Serial.print(sensorStateVector[i] ? "occupied" : "free");
+        Serial.print(" -> ");
+        Serial.println(currentState ? "occupied" : "free");
         
         yield();
-        String payload = "";
-        
-        // Safely get JSON payload
-        payload = sensors[i]->toJson();
+        String payload = sensors[i]->toJson();
         
         if (payload.length() > 0) {
-          Serial.println("Publishing sensor data for sensor " + String(i));
+          Serial.print("Publishing sensor ");
+          Serial.println(i);
           
           // Add delay to prevent overwhelming MQTT
           delay(100);
@@ -234,12 +235,13 @@ void loop() {
           
           if (mqttClient.publishSensorData(i, payload)) {
             sensorStateVector[i] = currentState;
-            Serial.println("Sensor " + String(i) + " data published successfully");
+            Serial.print("Sensor ");
+            Serial.print(i);
+            Serial.println(" published");
           } else {
-            Serial.println("Failed to publish sensor " + String(i) + " data");
+            Serial.print("Failed to publish sensor ");
+            Serial.println(i);
           }
-        } else {
-          Serial.println("Warning: Empty payload for sensor " + String(i));
         }
       }
       
