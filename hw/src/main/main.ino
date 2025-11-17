@@ -57,7 +57,12 @@ void setup() {
   
   // Configure watchdog timer
   Serial.println("\nConfiguring watchdog timer...");
-  esp_task_wdt_init(WDT_TIMEOUT, true);
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT * 1000,
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+    .trigger_panic = true
+  };
+  esp_task_wdt_init(&wdt_config);
   esp_task_wdt_add(NULL);
   
   // Step 1: Connect to WiFi
