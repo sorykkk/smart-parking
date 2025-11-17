@@ -119,10 +119,10 @@
 			
 			const marker = L.marker([location.latitude, location.longitude], { icon })
 				.addTo(map)
-				.bindPopup(`
-					<div style="min-width: 200px;">
-						<h3 style="margin: 0 0 0.5rem 0;">${location.name}</h3>
-						<p style="margin: 0.25rem 0; font-size: 0.9rem;">${location.address}</p>
+			.bindPopup(`
+				<div style="min-width: 200px;">
+					<h3 style="margin: 0 0 0.5rem 0;">${location.address}</h3>
+					<p style="margin: 0.25rem 0; font-size: 0.9rem; color: #666;">Device: ${location.name}</p>
 						<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f3f4f6; border-radius: 4px;">
 							<strong>${location.available_spots}/${location.total_spots}</strong> spots available
 							<div style="margin-top: 0.25rem; background: #ddd; height: 6px; border-radius: 3px; overflow: hidden;">

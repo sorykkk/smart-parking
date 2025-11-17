@@ -84,7 +84,7 @@
 				name: device.name,
 				latitude: device.latitude,
 				longitude: device.longitude,
-				address: device.location || 'Address not available',
+				address: device.location || device.name,
 				total_spots: device.parking_spots?.length || 0,
 				available_spots: device.parking_spots?.filter((spot: any) => !spot.is_occupied).length || 0,
 				occupancy_rate: device.parking_spots?.length > 0 
