@@ -9,7 +9,7 @@
 // Backend server settings for device registration
 #define BACKEND_HOST             "192.168.1.102"
 #define BACKEND_PORT             "5000"
-#define BACKEND_REGISTER_URL     "/api/device/iot-register"
+#define BACKEND_REGISTER_URL     "api/device/register"
 
 // ==================== Device Configuration ============================ //
 #define DEVICE_PREFIX    "esp32_dev"
