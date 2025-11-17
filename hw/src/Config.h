@@ -23,7 +23,7 @@
 #define DISTANCE_MAX_CM 50 // Distance below this means occupied
 
 // Timing settings
-#define SENSOR_READ_INTERVAL 10000  // Read sensors every 10 seconds (in milliseconds)
+#define SENSOR_READ_INTERVAL 1000  // Read sensors every 10 seconds (in milliseconds)
 
 // ==================== Camera Configuration ============================ //
 // TODO: Camera module will be added in future iterations
