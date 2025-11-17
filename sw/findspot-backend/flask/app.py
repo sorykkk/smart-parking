@@ -51,16 +51,14 @@ MQTT_BROKER = os.getenv('MQTT_BROKER', 'localhost')
 MQTT_PORT = int(os.getenv('MQTT_PORT', 1883))
 MQTT_USER = os.getenv('MQTT_USER', 'flask_backend')
 MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'backend_password')
-MQTT_TOPIC_SENSORS = "sensors/#"
-MQTT_TOPIC_DEVICE_REGISTER = "device/register/#"
-MQTT_TOPIC_SENSORS_REGISTER = "sensors/register/#"
 
 # ESP32 MQTT Credentials Configuration
 # ESP32 generates and sends its own credentials during registration
 
 def create_mqtt_user(username, password):
-    """Add MQTT user to mosquitto passwd file"""
-    passwd_file = "/mosquitto/config/passwd"
+    """Add MQTT user to mosquitto passwd file - Local Development Version"""
+    # Update path for local development
+    passwd_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'mosquitto', 'passwd')
     
     try:
         # Check if user already exists
@@ -71,40 +69,37 @@ def create_mqtt_user(username, password):
                     print(f"MQTT user {username} already exists")
                     return True
         
-        # Add new user with password hash
+        # Add new user with password hash using mosquitto_passwd
         import subprocess
+        
+        # For local development, try to find mosquitto_passwd
+        mosquitto_cmd = 'mosquitto_passwd'
+        
+        # Check if mosquitto_passwd is available
+        try:
+            subprocess.run([mosquitto_cmd, '--help'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Try Windows default path
+            mosquitto_cmd = r'C:\Program Files\mosquitto\mosquitto_passwd.exe'
+            if not os.path.exists(mosquitto_cmd):
+                print(f"⚠ Warning: mosquitto_passwd not found. User {username} not added to MQTT.")
+                return False
+        
         result = subprocess.run([
-            'mosquitto_passwd', '-b', passwd_file, username, password
+            mosquitto_cmd, '-b', passwd_file, username, password
         ], capture_output=True, text=True)
         
         if result.returncode == 0:
             print(f"✓ Successfully created MQTT user: {username}")
             print(f"MQTT user {username} added to passwd file")
-            
-            # Restart MQTT broker to reload password file
-            try:
-                restart_result = subprocess.run([
-                    'docker', 'restart', 'findspot-mqtt'
-                ], capture_output=True, text=True, timeout=10)
-                
-                if restart_result.returncode == 0:
-                    print(f"✓ MQTT broker restarted to reload credentials")
-                else:
-                    print(f"⚠ Warning: Could not restart MQTT broker: {restart_result.stderr}")
-                    print(f"  User {username} will be available after manual broker restart")
-            except Exception as restart_err:
-                print(f"⚠ Warning: Error restarting MQTT broker: {restart_err}")
-                print(f"  User {username} will be available after manual broker restart")
-            
+            print(f"  Note: Restart mosquitto manually to reload credentials")
             return True
         else:
             print(f"✗ Failed to create MQTT user {username}: {result.stderr}")
             return False
             
     except Exception as e:
-        print(f"✗ Error creating MQTT user {username}: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error creating MQTT user {username}: {e}")
         return False
 
 # Global MQTT client
@@ -115,279 +110,162 @@ def on_connect(client, userdata, flags, rc):
     """MQTT connection callback"""
     if rc == 0:
         print(f"Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
-        client.subscribe(MQTT_TOPIC_SENSORS)
-        print(f"Subscribed to topic: {MQTT_TOPIC_SENSORS}")
-        client.subscribe(MQTT_TOPIC_DEVICE_REGISTER)
-        print(f"Subscribed to topic: {MQTT_TOPIC_DEVICE_REGISTER}")
-        client.subscribe(MQTT_TOPIC_SENSORS_REGISTER)
-        print(f"Subscribed to topic: {MQTT_TOPIC_SENSORS_REGISTER}")
+        
+        # Subscribe to individual sensor updates: device/{device_id}/sensors/{sensor_index}
+        client.subscribe("device/+/sensors/+")
+        print("Subscribed to topic: device/+/sensors/+")
+        
+        # Subscribe to device status updates: device/{device_id}/status
+        client.subscribe("device/+/status")
+        print("Subscribed to topic: device/+/status")
+        
     else:
         print(f"Failed to connect to MQTT Broker, return code {rc}")
 
 
 def on_message(client, userdata, msg):
-    """MQTT message callback - processes sensor data and registration requests"""
+    """MQTT message callback - processes sensor data and auto-registers sensors"""
     try:
         topic = msg.topic
         payload = json.loads(msg.payload.decode())
-        print(f"Received message on {topic}: {payload}")
+        print(f"Received MQTT message on {topic}: {payload}")
         
-        # Process device registration
-        if topic == "device/register/request":
-            process_device_registration(client, payload)
-        # Process sensors registration  
-        elif topic == "sensors/register/request":
-            process_sensors_registration(client, payload)
-        # Process sensor data
-        elif topic.startswith("sensors/") and "/data/" in topic:
-            process_sensor_data(payload)
-        elif topic.endswith("/status"):
-            process_device_status(payload)
+        # Handle individual sensor data: device/{device_id}/sensors/{sensor_index}
+        if topic.startswith("device/") and "/sensors/" in topic:
+            parts = topic.split('/')
+            if len(parts) == 4:
+                device_id = int(parts[1])
+                sensor_index = int(parts[3])
+                process_single_sensor_data(device_id, sensor_index, payload)
+        # Handle device status updates: device/{device_id}/status
+        elif topic.startswith("device/") and topic.endswith("/status"):
+            parts = topic.split('/')
+            if len(parts) == 3:
+                device_id = int(parts[1])
+                process_device_status(device_id, payload)
             
     except json.JSONDecodeError as e:
         print(f"✗ Failed to parse JSON: {e}")
     except Exception as e:
-        print(f"✗ Error processing message: {e}")
+        print(f"✗ Error processing MQTT message: {e}")
+        import traceback
+        traceback.print_exc()
 
 
-def process_sensor_data(data):
-    """Process incoming sensor data and update database"""
+def process_single_sensor_data(device_id, sensor_index, data):
+    """Process individual sensor data update from ESP32"""
     with app.app_context():
         try:
-            device_id = data.get('device_id') 
-            sensor_index = data.get('index')
-            distance = data.get('current_distance')
-            is_occupied = data.get('is_occupied', False)
-            
-            print(f"Processing sensor data for device {device_id}, sensor {sensor_index}: distance={distance}cm, occupied={is_occupied}")
-            
-            # Get device by ID (since model uses id as primary key)
+            # Validate device exists
             device = Device.query.get(device_id)
             if not device:
-                print(f"Device {device_id} not found")
+                print(f"Device {device_id} not found for sensor data")
                 return
-                
-            # Update device last seen
+            
+            # Update device status
             device.last_seen = datetime.now(timezone.utc)
             device.status = 'online'
             
-            # Get sensor by device_id and index
-            sensor = DistanceSensor.query.filter_by(device_id=device.id, index=sensor_index).first()
-            if sensor:
-                # Update sensor data
+            sensor_name = data.get('name', f'sensor_{sensor_index}')
+            distance = data.get('current_distance')
+            is_occupied = data.get('is_occupied', False)
+            trigger_pin = data.get('trigger_pin')
+            echo_pin = data.get('echo_pin')
+            
+            if distance is None:
+                print(f"Missing distance in sensor data: {data}")
+                return
+            
+            print(f"Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
+            
+            # Find or create sensor
+            sensor = DistanceSensor.query.filter_by(
+                device_id=device_id, 
+                index=sensor_index
+            ).first()
+            
+            if not sensor:
+                # Auto-register new sensor
+                sensor = DistanceSensor(
+                    device_id=device_id,
+                    name=sensor_name,
+                    index=sensor_index,
+                    type=data.get('type', 'distance'),
+                    technology=data.get('technology', 'ultrasonic'),
+                    trigger_pin=trigger_pin if trigger_pin is not None else 0,
+                    echo_pin=echo_pin if echo_pin is not None else 0,
+                    current_distance=distance,
+                    is_occupied=is_occupied
+                )
+                db.session.add(sensor)
+                print(f"Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
+                
+                # Notify frontend about new sensor
+                socketio.emit('sensor_registered', {
+                    'device_id': device_id,
+                    'sensor_name': sensor_name,
+                    'sensor_index': sensor_index
+                })
+            else:
+                # Update existing sensor
                 sensor.current_distance = distance
                 sensor.is_occupied = is_occupied
                 sensor.last_updated = datetime.now(timezone.utc)
-
+            
             db.session.commit()
             
-            # Broadcast update to connected clients via WebSocket
-            broadcast_parking_update()
+            # Real-time update to frontend
+            socketio.emit('sensor_update', {
+                'device_id': device_id,
+                'sensor_index': sensor_index,
+                'sensor_name': sensor_name,
+                'distance': distance,
+                'occupied': is_occupied,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            })
+            
+            # Notify frontend about device update
+            socketio.emit('device_update', {
+                'device_id': device_id,
+                'status': 'online',
+                'last_seen': device.last_seen.isoformat()
+            })
+            
+            print(f"Successfully processed sensor {sensor_index} data for device {device_id}")
             
         except Exception as e:
             db.session.rollback()
             print(f"Error processing sensor data: {e}")
+            import traceback
+            traceback.print_exc()
 
 
-def process_device_registration(mqtt_client, data):
-    """Process device registration request via MQTT (Phase 1: Device only)"""
-    with app.app_context():
-        try:
-            mac_address = data.get('mac_address')
-            name = data.get('name')
-            location = data.get('location')
-            latitude = data.get('latitude')
-            longitude = data.get('longitude')
-            
-            # ESP32 sends its own generated credentials
-            mqtt_username = data.get('mqtt_username')
-            mqtt_password = data.get('mqtt_password')
-            
-            if not mac_address:
-                print("Registration failed: MAC address required")
-                return
-            
-            if not mqtt_username or not mqtt_password:
-                print("Registration failed: MQTT credentials required")
-                return
-            
-            print(f"Processing device registration for MAC: {mac_address}")
-            print(f"ESP32 MQTT username: {mqtt_username}")
-            
-            # Check if device already exists
-            device = Device.query.filter_by(mac_address=mac_address).first()
-            
-            if device:
-                print(f"Device exists: ID {device.id}, updating...")
-                # Update existing device
-                device.name = name
-                device.location = location
-                device.latitude = latitude
-                device.longitude = longitude
-                device.status = 'registered'
-                device.registered_at = datetime.now(timezone.utc)
-                device.last_seen = datetime.now(timezone.utc)
-
-                device_id = device.id
-                is_new = False
-            else:
-                print(f"Creating new device")
-                
-                device = Device(
-                    mac_address=mac_address,
-                    name=name,
-                    location=location,
-                    latitude=latitude,
-                    longitude=longitude,
-                    status='registered',
-                    registered_at=datetime.now(timezone.utc)
-                )
-                db.session.add(device)
-                db.session.flush()  # Get the auto-generated ID
-                device_id = device.id
-                is_new = True
-            
-            db.session.commit()
-            
-            print(f"Device registered: {device_id}")
-            
-            # Create MQTT user with credentials provided by ESP32
-            mqtt_created = create_mqtt_user(mqtt_username, mqtt_password)
-            
-            if mqtt_created:
-                print(f"MQTT credentials created for device {mac_address}")
-            else:
-                print(f"Warning: Failed to create MQTT credentials for device {mac_address}")
-            
-            # Send response back to device via MQTT
-            response_topic = f"device/register/{mac_address}/response"
-            response_payload = {
-                'status': 'registered',
-                'id': device_id,
-                'mac_address': mac_address,
-                'message': 'Device registered successfully' if is_new else 'Device updated successfully'
-            }
-            
-            mqtt_client.publish(response_topic, json.dumps(response_payload))
-            print(f"Sent device registration response to {response_topic}")
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error processing device registration: {e}")
-            
-            # Send error response
-            if 'mac_address' in locals():
-                response_topic = f"device/register/{mac_address}/response"
-                response_payload = {
-                    'status': 'error',
-                    'message': str(e)
-                }
-                mqtt_client.publish(response_topic, json.dumps(response_payload))
 
 
-def process_sensors_registration(mqtt_client, data):
-    """Process sensors registration request via MQTT (Phase 2: Sensors)"""
-    with app.app_context():
-        try:
-            device_id = data.get('device_id')  # ESP32 sends device_id
-            
-            if not device_id:
-                print("Sensors registration failed: Device ID required")
-                return
-                
-            print(f"Processing sensors registration for device: {device_id}")
-            
-            # Get device by ID (not device_id since model uses id as primary key)
-            device = Device.query.get(device_id)
-            if not device:
-                print(f"Device {device_id} not found")
-                return
-            
-            # Clear old sensors and cameras
-            DistanceSensor.query.filter_by(device_id=device.id).delete()
-            Camera.query.filter_by(device_id=device.id).delete()
-            
-            sensors_count = 0
-            cameras_count = 0
-            
-            # Register distance sensors
-            if 'distance' in data:
-                sensors_data = data['distance']
-                for sensor_data in sensors_data:
-                    sensor = DistanceSensor(
-                        device_id=device.id,
-                        name=sensor_data.get('name'),
-                        index=sensor_data.get('index'),
-                        technology=sensor_data.get('technology', 'ultrasonic'),
-                        trigger_pin=sensor_data.get('trigger_pin'),
-                        echo_pin=sensor_data.get('echo_pin'),
-                        is_occupied=sensor_data.get('is_occupied', False),
-                        current_distance=sensor_data.get('current_distance')
-                    )
-                    db.session.add(sensor)
-                    sensors_count += 1
-            
-            # Register cameras
-            if 'camera' in data:
-                cameras_data = data['camera']
-                for camera_data in cameras_data:
-                    camera = Camera(
-                        device_id=device.id,
-                        name=camera_data.get('name'),
-                        index=camera_data.get('index'),
-                        technology=camera_data.get('technology', 'OV2640'),
-                        resolution=camera_data.get('resolution'),
-                        jpeg_quality=camera_data.get('quality')
-                    )
-                    db.session.add(camera)
-                    cameras_count += 1
-            
-            db.session.commit()
-            
-            print(f"Sensors registered for device {device_id}: {sensors_count} sensors and {cameras_count} cameras")
-            
-            # Send response back to device via MQTT - use sensors/register topic  
-            response_topic = f"sensors/register/{device.mac_address}/response"
-            response_payload = {
-                'status': 'registered',
-                'sensors_registered': sensors_count,
-                'cameras_registered': cameras_count,
-                'message': 'Sensors registered successfully'
-            }
-            
-            mqtt_client.publish(response_topic, json.dumps(response_payload))
-            print(f"Sent sensors registration response to {response_topic}")
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error processing sensors registration: {e}")
-            
-            # Send error response
-            if 'device' in locals() and device:
-                response_topic = f"sensors/register/{device.mac_address}/response"
-                response_payload = {
-                    'status': 'error',
-                    'message': str(e)
-                }
-                mqtt_client.publish(response_topic, json.dumps(response_payload))
-
-
-def process_device_status(data):
+def process_device_status(device_id, data):
     """Process device status updates"""
     with app.app_context():
         try:
-            device_id = data.get('device')
-            status = data.get('status')
+            status = data.get('status', 'online')
             
-            device = Device.query.filter_by(device_id=device_id).first()
+            device = Device.query.get(device_id)
             if device:
                 device.status = status
                 device.last_seen = datetime.now(timezone.utc)
                 db.session.commit()
-                print(f"Updated device {device_id} status to {status}")
+                print(f"📊 Updated device {device_id} status to {status}")
+                
+                # Notify frontend
+                socketio.emit('device_update', {
+                    'device_id': device_id,
+                    'status': status,
+                    'last_seen': device.last_seen.isoformat()
+                })
+            else:
+                print(f"❌ Device {device_id} not found for status update")
         except Exception as e:
             db.session.rollback()
-            print(f"Error updating device status: {e}")
+            print(f"❌ Error updating device status: {e}")
 
 
 def broadcast_parking_update():
@@ -429,185 +307,120 @@ def health_check():
 
 # Device Registration Endpoints
 
-@app.route('/api/device/pre-register', methods=['POST'])
-def pre_register_device():
+@app.route('/api/device/register', methods=['POST'])
+def register_iot_device():
     """
-    Pre-register a device and generate a unique device ID.
-    ESP32 calls this on first boot to get its ID.
+    ESP32 Device Registration Endpoint - Simplified Flow
     
-    Expected JSON:
+    ESP32 registers via HTTP and receives MQTT credentials.
+    Sensors are auto-registered when they send data via MQTT.
+    
+    Expected JSON from ESP32:
     {
         "mac_address": "AA:BB:CC:DD:EE:FF",
-        "name": "ESP32 Device",
-        "location": "Building A",
-        "latitude": 45.7489,
-        "longitude": 21.2087
+        "name": "ESP32 Parking Sensor",
+        "location": "Parking Lot A - Spot 1",
+        "latitude": 46.7712,
+        "longitude": 23.6236
     }
     
     Returns:
     {
-        "id": 1,
-        "status": "pre-registered"
+        "device_id": 123,
+        "mqtt_username": "esp32_AABBCCDDEEFF",
+        "mqtt_password": "esp32_pass_AABBCCDDEEFF",
+        "mqtt_broker": "192.168.1.103",
+        "mqtt_port": 1883,
+        "sensor_topic": "device/123/sensors",
+        "status": "registered"
     }
     """
     try:
         data = request.get_json()
-        mac_address = data.get('mac_address')
-        name = data.get('name', 'ESP32 Device')
-        location = data.get('location', 'Unknown Location')
+        
+        # Validate required fields
+        required_fields = ['mac_address', 'name', 'location']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        mac_address_orig = data.get('mac_address')
+        mac_address_clean = mac_address_orig.replace(':', '').upper()
+        name = data.get('name')
+        location = data.get('location')
         latitude = data.get('latitude', 0.0)
         longitude = data.get('longitude', 0.0)
         
-        if not mac_address:
-            return jsonify({'error': 'MAC address is required'}), 400
-        
-        # Check if device with this MAC already exists
-        existing_device = Device.query.filter_by(mac_address=mac_address).first()
+        # Check if device already exists
+        existing_device = Device.query.filter_by(mac_address=mac_address_orig).first()
         if existing_device:
+            # Return existing device info
+            mqtt_username = f"esp32_{mac_address_clean}"
+            mqtt_password = f"esp32_pass_{mac_address_clean}"
+            
+            print(f"✓ Device already registered: {existing_device.id} ({name}) with MAC: {mac_address_orig}")
+            
             return jsonify({
-                'id': existing_device.id,
+                'device_id': existing_device.id,
+                'mqtt_username': mqtt_username,
+                'mqtt_password': mqtt_password,
+                'mqtt_broker': MQTT_BROKER,
+                'mqtt_port': MQTT_PORT,
+                'sensor_topic': f'device/{existing_device.id}/sensors',
                 'status': existing_device.status,
-                'message': 'Device already exists'
+                'message': 'Device already registered'
             }), 200
         
-        # Create pre-registered device
+        # Create new device
         new_device = Device(
-            mac_address=mac_address,
+            mac_address=mac_address_orig,
             name=name,
             location=location,
             latitude=latitude,
             longitude=longitude,
-            status='pre-registered'
+            status='registered'
         )
         
         db.session.add(new_device)
         db.session.commit()
         
-        print(f"Pre-registered device: {new_device.id} with MAC: {mac_address}")
+        # Generate MQTT credentials matching ESP32 format
+        mqtt_username = f"esp32_{mac_address_clean}"
+        mqtt_password = f"esp32_pass_{mac_address_clean}"
+        
+        # Create MQTT user in mosquitto
+        mqtt_created = create_mqtt_user(mqtt_username, mqtt_password)
+        if not mqtt_created:
+            print(f"⚠ Warning: Could not create MQTT credentials for {mqtt_username}")
+        
+        print(f"✓ Registered ESP32 device: {new_device.id} ({name}) with MAC: {mac_address_orig}")
+        
+        # Notify frontend about new device
+        socketio.emit('device_registered', {
+            'device_id': new_device.id,
+            'name': name,
+            'location': location,
+            'latitude': float(latitude) if latitude else 0.0,
+            'longitude': float(longitude) if longitude else 0.0,
+            'status': 'registered'
+        })
         
         return jsonify({
-            'id': new_device.id,
-            'status': 'pre-registered',
-            'message': 'Device pre-registered successfully'
+            'device_id': new_device.id,
+            'mqtt_username': mqtt_username,
+            'mqtt_password': mqtt_password,
+            'mqtt_broker': MQTT_BROKER,
+            'mqtt_port': MQTT_PORT,
+            'sensor_topic': f'device/{new_device.id}/sensors',
+            'status': 'registered',
+            'message': 'ESP32 device registered successfully'
         }), 201
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error pre-registering device: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/device/register', methods=['POST'])
-def register_device():
-    """
-    Complete device registration with full information.
-    ESP32 calls this after getting device_id from pre-register.
-    
-    Expected JSON:
-    {
-        "id": 1,
-        "name": "Parking Lot A - Device 1",
-        "location": "Building A, Level 2, North Wing",
-        "latitude": 45.7489,
-        "longitude": 21.2087,
-        "sensors": [
-            {
-                "name": "parking-spot-1",
-                "index": 0,
-                "trigger_pin": 12,
-                "echo_pin": 13
-            }
-        ],
-        "cameras": [
-            {
-                "name": "esp-cam-1",
-                "index": 0,
-                "technology": "OV2640",
-                "resolution": "QVGA",
-                "jpeg_quality": 10
-            }
-        ]
-    }
-    
-    Returns:
-    {
-        "status": "registered",
-        "id": 1,
-        "sensors_registered": 2,
-        "cameras_registered": 1
-    }
-    """
-    try:
-        data = request.get_json()
-        device_id = data.get('id')
-        
-        if not device_id:
-            return jsonify({'error': 'device id is required'}), 400
-        
-        # Find the device by ID
-        device = Device.query.get(device_id)
-        if not device:
-            return jsonify({'error': 'Device not found. Please pre-register first.'}), 404
-        
-        # Update device information
-        device.name = data.get('name')
-        device.location = data.get('location')
-        device.latitude = data.get('latitude')
-        device.longitude = data.get('longitude')
-        device.status = 'registered'
-        device.registered_at = datetime.now(timezone.utc)
-        
-        # Clear existing sensors and cameras
-        DistanceSensor.query.filter_by(device_id=device.id).delete()
-        Camera.query.filter_by(device_id=device.id).delete()
-        
-        # Register sensors
-        sensors_data = data.get('sensors', [])
-        sensors_count = 0
-        
-        for sensor_data in sensors_data:
-            sensor = DistanceSensor(
-                device_id=device.id,
-                name=sensor_data.get('name'),
-                index=sensor_data.get('index', sensors_count),
-                technology=sensor_data.get('technology', 'ultrasonic'),
-                trigger_pin=sensor_data.get('trigger_pin'),
-                echo_pin=sensor_data.get('echo_pin')
-            )
-            db.session.add(sensor)
-            sensors_count += 1
-        
-        # Register cameras
-        cameras_data = data.get('cameras', [])
-        cameras_count = 0
-        
-        for camera_data in cameras_data:
-            camera = Camera(
-                device_id=device.id,
-                name=camera_data.get('name'),
-                index=camera_data.get('index', cameras_count),
-                technology=camera_data.get('technology', 'OV2640'),
-                resolution=camera_data.get('resolution'),
-                jpeg_quality=camera_data.get('jpeg_quality')
-            )
-            db.session.add(camera)
-            cameras_count += 1
-        
-        db.session.commit()
-        
-        print(f"Registered device: {device_id} with {sensors_count} sensors and {cameras_count} cameras")
-        
-        return jsonify({
-            'status': 'registered',
-            'id': device_id,
-            'sensors_registered': sensors_count,
-            'cameras_registered': cameras_count,
-            'message': 'Device registered successfully'
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error registering device: {e}")
+        print(f"❌ Error registering ESP32 device: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 

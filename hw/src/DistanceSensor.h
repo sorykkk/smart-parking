@@ -26,8 +26,9 @@ public:
       type = "distance";
       technology = sensorTech;
       index = sensorIndex;
-      //ultrasonic_1_esp32_1
-      name = technology + "_" + String(index) + "_" + device.getName() + "_" + device.getId();
+      // Device is already registered at this point, so device.getId() is valid
+      // Format: ultrasonic_0_esp32_dev_1 (includes device ID)
+      name = technology + "_" + String(index) + "_" + device.getName() + "_" + String(device.getId());
       
       // Initialize isoTime with default value
       strcpy(isoTime, "1970-01-01T00:00:00Z");
@@ -38,11 +39,12 @@ public:
     pinMode(echoPin, INPUT);
   }
 
-  /// @brief Calculate the `lastDistance`, and set `occupied` if the parking stop is to consider taken 
-  /// @return Distance in cm
+  /// @brief Calculate the `lastDistance`, and set `occupied` if the parking spot is to consider taken 
+  /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
     lastDistance = getDistance();
-    occupied = (lastDistance == INVALID_DISTANCE)? false : true;
+    // Occupied when distance is valid AND within the threshold (car is close enough)
+    occupied = (lastDistance != INVALID_DISTANCE && lastDistance <= DISTANCE_MAX_CM);
 
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {

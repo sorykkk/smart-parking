@@ -126,6 +126,32 @@
 			locations = data;
 		});
 		
+		// Handle new device registration
+		socket.on('device_registered', (data: any) => {
+			console.log('🆕 New device registered:', data);
+			// Refresh locations to show new device
+			fetchLocations();
+		});
+		
+		// Handle sensor registration
+		socket.on('sensor_registered', (data: any) => {
+			console.log('🔧 New sensor registered:', data);
+			// Refresh locations to update sensor count
+			fetchLocations();
+		});
+		
+		// Handle real-time sensor updates
+		socket.on('sensor_update', (data: any) => {
+			console.log('📊 Sensor update:', data);
+			// Update specific location if we have real-time updates
+		});
+		
+		// Handle device status updates
+		socket.on('device_update', (data: any) => {
+			console.log('📱 Device status update:', data);
+			// Update device status in the UI
+		});
+		
 		socket.on('disconnect', () => {
 			console.log('WebSocket disconnected');
 		});
