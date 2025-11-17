@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FindSpot</string>
+    <string name="title_activity_main">FindSpot</string>
+    <string name="package_name">com.findspot.parking</string>
+    <string name="custom_url_scheme">com.findspot.parking</string>
+</resources>

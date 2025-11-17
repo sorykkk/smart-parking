@@ -1,30 +1,40 @@
 #include <Arduino.h>
 #include <vector>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include "esp_task_wdt.h"
 #include "../Config.h"
 #include "../WiFiManager.h"
 #include "../DistanceSensor.h"
 #include "../CameraDevice.h"
 #include "../MQTTClient.h"
+#include "../HttpClient.h"
 #include "time.h"
 
 using namespace FindSpot;
 
+// Watchdog timeout in seconds (increased to prevent premature resets)
+#define WDT_TIMEOUT 30
+
+// ==================== Global Objects ============================ //
 WiFiManager wifi;
-MQTTClient mqttClient;  // No device ID needed, will be retrieved
-Device *esp32device = nullptr; // Global pointer to device
+HttpClient httpClient;
+MQTTClient mqttClient;
+Device esp32device(DEVICE_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
 
 std::vector<ISensor*> sensors;
-std::vector<bool> stateVector; // Track sensor states
+std::vector<bool> sensorStateVector;
 
 unsigned long lastSensorRead = 0;
 
-// NTP server and timezone
+// NTP server and timezone settings
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 7200;      // for GMT+2
-const int   daylightOffset_sec = 3600; // use 0 if none
+const long  gmtOffset_sec = 7200;      // GMT+2
+const int   daylightOffset_sec = 3600; // Daylight saving
 
+// ==================== MQTT Callback ============================ //
 /**
- * MQTT callback for incoming messages
+ * MQTT callback for incoming messages (optional - for future features)
  */
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message;
@@ -32,156 +42,146 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   
-  Serial.println("MQTT Message on topic: " + String(topic));
-  Serial.println("Payload: " + message);
-  
-  // Check if this is a registration response
-  String macAddress = mqttClient.getMac();
-  String regResponseTopic = String(MQTT_TOPIC_REGISTER_DEVICE) + macAddress + "/response";
-  String sensorsRegResponseTopic = String(MQTT_TOPIC_REGISTER_SENSORS) + macAddress + "/response";
-  
-  if (String(topic) == regResponseTopic || String(topic) == sensorsRegResponseTopic) {
-    if(!mqttClient.handleRegistrationResponse(message)) {
-      Serial.println("Could not finish registration");
-    }
-  }
+  Serial.println("📨 MQTT Message on topic: " + String(topic));
+  Serial.println("📦 Payload: " + message);
 }
 
+// ==================== Setup ============================ //
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n\n=== FindSpot Smart Parking System ===");
+  Serial.println("\n\n");
+  Serial.println("╔═══════════════════════════════════════════════╗");
+  Serial.println("║   FindSpot Smart Parking System - ESP32       ║");
+  Serial.println("╚═══════════════════════════════════════════════╝");
   
-  // Connect to WiFi
-  Serial.println("\n--- Connecting to WiFi ---");
+  // Configure watchdog timer
+  Serial.println("\nConfiguring watchdog timer...");
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT * 1000,
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+    .trigger_panic = true
+  };
+  esp_task_wdt_init(&wdt_config);
+  esp_task_wdt_add(NULL);
+  
+  // Step 1: Connect to WiFi
+  Serial.println("\nConnecting to WiFi...");
   wifi.connect();
+  Serial.println("WiFi Connected");
   
-  Serial.println("\n--- Initializing ESP32 devices ---");
-  esp32device = new Device(MQTT_DEVICE_PREFIX, DEVICE_LOCATION, DEVICE_LATITUDE, DEVICE_LONGITUDE);
-  
-  // Set device in MQTT client BEFORE begin() so MAC address is available
-  mqttClient.setDevice(*esp32device);
-  
-  // Initialize MQTT client
-  Serial.println("\n--- Initializing MQTT Client ---");
-  mqttClient.begin();
-  mqttClient.setCallback(mqttCallback);
-  
-  // Wait for MQTT connection
-  Serial.println("Waiting for MQTT connection...");
-  unsigned long startWait = millis();
-  while (!mqttClient.isConnected() && (millis() - startWait < 30000)) {
-    mqttClient.loop();
+  // Step 2: Synchronize time with NTP server
+  Serial.println("\nSynchronizing time with NTP server...");
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  struct tm timeinfo;
+  int attempts = 0;
+  while (!getLocalTime(&timeinfo) && attempts < 20) {
     delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  if (getLocalTime(&timeinfo)) {
+    Serial.println("\nime synchronized!");
+    Serial.print("   Current time: ");
+    Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+  } else {
+    Serial.println("\nTime sync failed, continuing anyway...");
   }
   
-  if (!mqttClient.isConnected()) {
+  // Step 3: Register device via HTTP and get MQTT credentials
+  Serial.println("\nRegistering device with backend...");
+  RegistrationResponse regResponse = httpClient.registerDevice(esp32device);
+  
+  if (!regResponse.success) {
+    Serial.println("Device registration failed: " + regResponse.error_message);
+    Serial.println("Restarting in 10 seconds...");
+    delay(10000);
+    ESP.restart();
+    return;
+  }
+  
+  // Set device ID
+  esp32device.setId(regResponse.device_id);
+  Serial.println("Device registered successfully!");
+  Serial.println("   Device ID: " + String(regResponse.device_id));
+  
+  // Step 4: Connect to MQTT broker using credentials from backend
+  Serial.println("\nConnecting to MQTT broker...");
+  mqttClient.setCredentials(
+    regResponse.mqtt_username,
+    regResponse.mqtt_password,
+    regResponse.mqtt_broker,
+    regResponse.mqtt_port,
+    regResponse.sensor_topic,
+    regResponse.device_id
+  );
+  mqttClient.setCallback(mqttCallback);
+  
+  // Reset watchdog before MQTT connection attempt
+  esp_task_wdt_reset();
+  
+  if (!mqttClient.connect()) {
     Serial.println("Failed to connect to MQTT broker!");
     Serial.println("Restarting in 10 seconds...");
     delay(10000);
     ESP.restart();
+    return;
   }
   
-  Serial.println("MQTT Connected");
-
-  Serial.println("\n--- Synchronizing time ---");
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nTime synchronized!");
-  
-  // First: Register device and wait for device ID
-  mqttClient.registerDevice(*esp32device);
-  
-  // Wait for device registration response
-  Serial.println("Waiting for device registration response...");
-  unsigned long deviceRegStart = millis();
-  while (!mqttClient.isDeviceRegistered() && (millis() - deviceRegStart < 15000)) {
+  // Wait for MQTT connection to stabilize
+  unsigned long startWait = millis();
+  while (!mqttClient.isConnected() && (millis() - startWait < 10000)) {
     mqttClient.loop();
     delay(100);
-    
-    // Check if credential switch is needed and handle it outside callback context
-    if (mqttClient.needsCredentialSwitch()) {
-      Serial.println("Credential switch needed - performing outside callback context");
-      if (mqttClient.performCredentialSwitch()) {
-        Serial.println("Credential switch completed successfully");
-        // Give additional time for the connection to stabilize
-        delay(2000);
-        for (int i = 0; i < 10; i++) {
-          mqttClient.loop();
-          delay(100);
-        }
-      } else {
-        Serial.println("Credential switch failed, restarting...");
-        delay(10000);
-        ESP.restart();
-      }
-    }
+    esp_task_wdt_reset(); // Reset watchdog during connection wait
   }
   
-  if (!mqttClient.isDeviceRegistered()) {
-    Serial.println("Warning: Device registration timed out");
+  if (!mqttClient.isConnected()) {
+    Serial.println("MQTT connection timeout!");
     Serial.println("Restarting in 10 seconds...");
     delay(10000);
     ESP.restart();
+    return;
   }
-
-  // Update device with received ID
-  int receivedDeviceId = mqttClient.getDeviceId();
-  esp32device->setId(receivedDeviceId);
-  Serial.println("Device registered with ID: " + String(receivedDeviceId));
   
-  // Initialize sensors AFTER getting device ID
-  Serial.println("\n--- Initializing Sensors ---");
+  Serial.println("MQTT Connected");
+  
+  // Step 5: Initialize sensors
+  Serial.println("\nInitializing sensors...");
   int sensor_id = 0;
   
   // Setup ultrasonic sensors (each represents a parking spot)
-  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 13, 12));
-  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 14, 15));
-  sensors.push_back(new DistanceSensor(*esp32device, "ultrasonic", sensor_id++, 16, 0));
+  // Format: DistanceSensor(device, technology, index, trigger_pin, echo_pin)
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 13, 12));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
 
-  for (auto& s : sensors) {
-    s->begin();
+  for (auto& sensor : sensors) {
+    sensor->begin();
   }
+  
   Serial.println("Initialized " + String(sensors.size()) + " sensors");
   
   // Initialize state tracking vector
-  stateVector.resize(sensors.size(), false);
-
-  // Second: Register sensors with device ID
-  mqttClient.registerSensors(sensors, *esp32device);
+  sensorStateVector.resize(sensors.size(), false);
   
-  // Wait for sensors registration response
-  Serial.println("Waiting for sensors registration response...");
-  unsigned long sensorsRegStart = millis();
-  while (!mqttClient.isSensorsRegistered() && (millis() - sensorsRegStart < 15000)) {
-    mqttClient.loop();
-    delay(100);
-  }
-  
-  if (!mqttClient.isSensorsRegistered()) {
-    Serial.println("Warning: Sensors registration timed out");
-    Serial.println("Will continue but sensor data may not be processed correctly");
-  } else {
-    Serial.println("Sensors registered successfully");
-  }
-  
-  Serial.println("\n=== Setup Complete ===");
-  Serial.println("MAC Address: " + mqttClient.getMac());
-  Serial.println("ESP32 ID: " + mqttClient.getDeviceId());
-  Serial.println("Sensors: " + String(sensors.size()));
-  Serial.println("======================\n");
+  Serial.println("\n");
+  Serial.println("╔═══════════════════════════════════════════════╗");
+  Serial.println("║          System Ready - Starting Loop         ║");
+  Serial.println("╚═══════════════════════════════════════════════╝\n");
 }
 
+// ==================== Main Loop ============================ //
 void loop() {
+  // Reset watchdog timer
+  esp_task_wdt_reset();
+  
   // Maintain MQTT connection
   mqttClient.loop();
   
-  // Only publish sensor data if both device and sensors are registered
-  if (!mqttClient.isDeviceRegistered() || !mqttClient.isSensorsRegistered()) {
+  // Check if device is registered
+  if (esp32device.getId() <= 0) {
+    Serial.println("Device not registered, waiting...");
     delay(1000);
     return;
   }
@@ -189,24 +189,86 @@ void loop() {
   unsigned long currentMillis = millis();
   
   // Read sensors periodically
-  if (currentMillis - lastSensorRead >= DISTANCE_SENSOR_READ_INTERVAL) {
+  if (currentMillis - lastSensorRead >= SENSOR_READ_INTERVAL) {
     lastSensorRead = currentMillis;
     
-    // Read all sensors and check for state changes
+    Serial.println("\nReading sensors...");
+    Serial.print("Free heap: ");
+    Serial.println(ESP.getFreeHeap());
+    yield(); // Allow background tasks
+    
+    // Ensure MQTT is connected before reading sensors
+    if (!mqttClient.isConnected()) {
+      Serial.println("MQTT not connected, skipping sensor read");
+      return;
+    }
+    
+    // Check each sensor for state changes
     for (size_t i = 0; i < sensors.size(); i++) {
-      bool currentState = sensors[i]->checkState();
-      if(currentState != stateVector[i]) {
-        Serial.println("Sensor state changed - Publishing sensor data:");
-        String payload = sensors[i]->toJson();
-        Serial.println(payload);
-        
-        if(mqttClient.publishSensorData(payload)) {
-          stateVector[i] = currentState;
-          Serial.println("Sensor data published successfully");
-        } else {
-          Serial.println("Failed to publish sensor data");
-        }
+      // Safety check: ensure sensor pointer is valid
+      if (!sensors[i]) {
+        Serial.print("ERROR: Null sensor at index ");
+        Serial.println(i);
+        continue;
       }
+      
+      // Safety check: ensure index is within bounds
+      if (i >= sensorStateVector.size()) {
+        Serial.print("ERROR: Index out of bounds ");
+        Serial.println(i);
+        continue;
+      }
+      
+      // Add delay between sensors to prevent issues
+      delay(50);
+      yield();
+      
+      bool currentState = false;
+      // Wrap sensor reading in try-catch equivalent (check for crashes)
+      currentState = sensors[i]->checkState();
+      
+      // Only publish if state changed
+      if (currentState != sensorStateVector[i]) {
+        Serial.print("Sensor ");
+        Serial.print(i);
+        Serial.print(" state changed: ");
+        Serial.print(sensorStateVector[i] ? "occupied" : "free");
+        Serial.print(" -> ");
+        Serial.println(currentState ? "occupied" : "free");
+        
+        yield();
+        
+        // Create payload inside a scope to free memory immediately after use
+        String payload = "";
+        if (sensors[i]) {
+          payload = sensors[i]->toJson();
+        }
+        
+        if (payload.length() > 0 && mqttClient.isConnected()) {
+          Serial.print("Publishing sensor ");
+          Serial.println(i);
+          
+          // Add delay to prevent overwhelming MQTT
+          delay(100);
+          yield();
+          
+          if (mqttClient.publishSensorData(i, payload)) {
+            sensorStateVector[i] = currentState;
+            Serial.print("Sensor ");
+            Serial.print(i);
+            Serial.println(" published");
+          } else {
+            Serial.print("Failed to publish sensor ");
+            Serial.println(i);
+          }
+        }
+        
+        // Force free the payload string
+        payload = String();
+      }
+      
+      // Yield after each sensor
+      yield();
     }
   }
 }

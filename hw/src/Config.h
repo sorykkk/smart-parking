@@ -1,49 +1,33 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// include for:
-//  * MQTT_PASS
-//  * WIFI_SSID
-//  * WIFI_PASS 
+// ==================== WiFi Configuration ============================ //
+// Include for WIFI_SSID and WIFI_PASS
 #include "env.h"
 
-// MQTT Broker settings (Raspberry Pi server)
-// TODO: make it also retrievable from an external storage like database, or use backend api to retrieve
-// TODO: for now it's ok to be hardcoded
-// IMPORTANT: Update this IP address to match your Raspberry Pi 5 IP address
-// This should match the PI_IP_ADDRESS in sw/.env
-#define MQTT_BROKER "192.168.1.103"
-#define MQTT_PORT 1883
-#define MQTT_DEVICE_PREFIX "esp32_dev"
+// ==================== Backend HTTP Configuration ============================ //
+// Backend server settings for device registration
 
-// Backend MQTT credentials for initial registration
-#define BACKEND_MQTT_USER "flask_backend"
+#define BACKEND_REGISTER_URL     "api/device/register"
 
-// MQTT Topics
-#define MQTT_TOPIC_SENSORS "sensors/"
-// #define MQTT_TOPIC_CONTROL "control/"
-#define MQTT_TOPIC_REGISTER_DEVICE "device/register/"
-#define MQTT_TOPIC_REGISTER_SENSORS "sensors/register/"
-
-// ====================== ESP32 & sensors configuration ====================== //
-
-// Device registration settings
-#define DEVICE_LOCATION "Complexul Studentesc P1"
-#define DEVICE_LATITUDE 45.74956539097931  // Location Timisoara, Romania
+// ==================== Device Configuration ============================ //
+#define DEVICE_PREFIX    "esp32_dev"
+#define DEVICE_LOCATION  "Complexul Studentesc P1"
+#define DEVICE_LATITUDE  45.74956539097931  // Location Timisoara, Romania
 #define DEVICE_LONGITUDE 21.240075184660427
 
-
-// Sensor threshold settings
+// ==================== Sensor Configuration ============================ //
+// Distance sensor settings
 #define DISTANCE_MIN_CM 5
 #define DISTANCE_MAX_CM 50 // Distance below this means occupied
 
-// Camera settings
-//TODO: camera module will be deactivated for now
+// Timing settings
+#define SENSOR_READ_INTERVAL 1000  // Read sensors every 10 seconds (in milliseconds)
+
+// ==================== Camera Configuration ============================ //
+// TODO: Camera module will be added in future iterations
 // #define CAMERA_QUALITY 10  // 0-63 lower means higher quality
 
-// Timing settings
-#define DISTANCE_SENSOR_READ_INTERVAL 10000  // Read sensors every 10 seconds
-//TODO: Sensor will send only if it's occupied state will change
-
 #endif
+
 

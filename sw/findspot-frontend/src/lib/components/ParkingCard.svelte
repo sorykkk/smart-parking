@@ -24,7 +24,7 @@
 
 <div class="card">
 	<div class="card-header">
-		<h3>{location.name}</h3>
+		<h3>{location.address}</h3>
 		{#if distance !== null}
 			<span class="distance">{distance.toFixed(1)} km</span>
 		{/if}

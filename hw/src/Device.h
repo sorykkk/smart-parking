@@ -55,9 +55,7 @@ public:
     }
 
     String toJson() const {
-        // Build registration JSON payload
-        // Note: MQTT credentials are added by MQTTClient during registration
-        DynamicJsonDocument doc(4096);
+        StaticJsonDocument<512> doc;
         doc["name"] = name;
         doc["location"] = location;
         doc["latitude"] = latitude;

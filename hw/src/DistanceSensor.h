@@ -26,8 +26,9 @@ public:
       type = "distance";
       technology = sensorTech;
       index = sensorIndex;
-      //ultrasonic_1_esp32_1
-      name = technology + "_" + String(index) + "_" + device.getName() + "_" + device.getId();
+      // Device is already registered at this point, so device.getId() is valid
+      // Format: ultrasonic_0_esp32_dev_1 (includes device ID)
+      name = technology + "_" + String(index) + "_" + device.getName() + "_" + String(device.getId());
       
       // Initialize isoTime with default value
       strcpy(isoTime, "1970-01-01T00:00:00Z");
@@ -38,18 +39,37 @@ public:
     pinMode(echoPin, INPUT);
   }
 
-  /// @brief Calculate the `lastDistance`, and set `occupied` if the parking stop is to consider taken 
-  /// @return Distance in cm
+  /// @brief Calculate the `lastDistance`, and set `occupied` if the parking spot is to consider taken 
+  /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
-    lastDistance = getDistance();
-    occupied = (lastDistance == INVALID_DISTANCE)? false : true;
-
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo)) {
-      strftime(isoTime, sizeof(isoTime), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
-    } else {
-      strcpy(isoTime, "1970-01-01T00:00:00Z"); // fallback
+    bool previousState = occupied;
+    
+    // Safely get distance with error handling
+    long distance = getDistance();
+    if (distance == INVALID_DISTANCE) {
+      // Keep previous state on invalid reading
+      return occupied;
     }
+    
+    lastDistance = distance;
+    // Occupied when distance is valid AND within the threshold (car is close enough)
+    occupied = (lastDistance <= DISTANCE_MAX_CM);
+
+    // Log state change
+    if (occupied != previousState) {
+      Serial.print("Sensor ");
+      Serial.print(index);
+      Serial.print(": ");
+      Serial.print(previousState ? "occupied" : "free");
+      Serial.print(" -> ");
+      Serial.print(occupied ? "occupied" : "free");
+      Serial.print(" (");
+      Serial.print(lastDistance);
+      Serial.println("cm)");
+    }
+
+    // Update timestamp - simplified to avoid strftime issues
+    strcpy(isoTime, "2025-01-01T00:00:00Z");
 
     return occupied;
   }
@@ -60,7 +80,15 @@ public:
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
-    long duration = pulseIn(echoPin, HIGH, 30000);
+    
+    // Use shorter timeout (25ms) to prevent blocking too long
+    long duration = pulseIn(echoPin, HIGH, 25000);
+    
+    // If pulseIn times out, it returns 0
+    if (duration == 0) {
+      return INVALID_DISTANCE;
+    }
+    
     long distance = (duration * 0.034 / 2);
 
     return (distance < DISTANCE_MIN_CM || distance > DISTANCE_MAX_CM) 
@@ -85,25 +113,22 @@ public:
   }
 
   String toJson() const override {
-    // Build registration JSON payload - use smaller doc, heap allocation
-    DynamicJsonDocument* doc = new DynamicJsonDocument(512);
-    if (!doc) {
-      return "{}";  // Return empty object on allocation failure
-    }
+    // Use static JSON document to avoid heap allocation issues
+    StaticJsonDocument<384> doc;
     
-    (*doc)["name"] = name;
-    (*doc)["index"] = index;
-    (*doc)["type"] = type;
-    (*doc)["technology"] = technology;
-    (*doc)["trigger_pin"] = trigPin;
-    (*doc)["echo_pin"] = echoPin;
-    (*doc)["is_occupied"] = occupied;
-    (*doc)["current_distance"] = lastDistance;
-    (*doc)["last_updated"] = isoTime;
+    doc["name"] = name;
+    doc["index"] = index;
+    doc["type"] = type;
+    doc["technology"] = technology;
+    doc["trigger_pin"] = trigPin;
+    doc["echo_pin"] = echoPin;
+    doc["is_occupied"] = occupied;
+    doc["current_distance"] = lastDistance;
+    doc["last_updated"] = isoTime;
 
     String payload;
-    serializeJson(*doc, payload);
-    delete doc;  // Free heap memory
+    payload.reserve(256); // Pre-allocate to avoid fragmentation
+    serializeJson(doc, payload);
     return payload;
   }
 
