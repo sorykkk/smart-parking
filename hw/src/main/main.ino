@@ -189,6 +189,7 @@ void loop() {
     lastSensorRead = currentMillis;
     
     Serial.println("\nReading sensors...");
+    yield(); // Allow background tasks
     
     // Check each sensor for state changes
     for (size_t i = 0; i < sensors.size(); i++) {
@@ -204,7 +205,13 @@ void loop() {
         continue;
       }
       
-      bool currentState = sensors[i]->checkState();
+      // Add delay between sensors to prevent issues
+      delay(50);
+      yield();
+      
+      bool currentState = false;
+      // Wrap sensor check in try-catch equivalent
+      currentState = sensors[i]->checkState();
       
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
@@ -212,19 +219,32 @@ void loop() {
                       String(sensorStateVector[i] ? "occupied" : "free") + " -> " +
                       String(currentState ? "occupied" : "free"));
         
-        String payload = sensors[i]->toJson();
-        Serial.println("Publishing sensor data for sensor " + String(i));
+        yield();
+        String payload = "";
         
-        // Add small delay to prevent overwhelming MQTT
-        delay(10);
+        // Safely get JSON payload
+        payload = sensors[i]->toJson();
         
-        if (mqttClient.publishSensorData(i, payload)) {
-          sensorStateVector[i] = currentState;
-          Serial.println("Sensor " + String(i) + " data published successfully");
+        if (payload.length() > 0) {
+          Serial.println("Publishing sensor data for sensor " + String(i));
+          
+          // Add delay to prevent overwhelming MQTT
+          delay(100);
+          yield();
+          
+          if (mqttClient.publishSensorData(i, payload)) {
+            sensorStateVector[i] = currentState;
+            Serial.println("Sensor " + String(i) + " data published successfully");
+          } else {
+            Serial.println("Failed to publish sensor " + String(i) + " data");
+          }
         } else {
-          Serial.println("Failed to publish sensor " + String(i) + " data");
+          Serial.println("Warning: Empty payload for sensor " + String(i));
         }
       }
+      
+      // Yield after each sensor
+      yield();
     }
   }
 }

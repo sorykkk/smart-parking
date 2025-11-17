@@ -43,9 +43,17 @@ public:
   /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
     bool previousState = occupied;
-    lastDistance = getDistance();
+    
+    // Safely get distance with error handling
+    long distance = getDistance();
+    if (distance == INVALID_DISTANCE) {
+      // Keep previous state on invalid reading
+      return occupied;
+    }
+    
+    lastDistance = distance;
     // Occupied when distance is valid AND within the threshold (car is close enough)
-    occupied = (lastDistance != INVALID_DISTANCE && lastDistance <= DISTANCE_MAX_CM);
+    occupied = (lastDistance <= DISTANCE_MAX_CM);
 
     // Log state change
     if (occupied != previousState) {
@@ -114,23 +122,30 @@ public:
     // Build registration JSON payload - use smaller doc, heap allocation
     DynamicJsonDocument* doc = new DynamicJsonDocument(512);
     if (!doc) {
+      Serial.println("JSON allocation failed!");
       return "{}";  // Return empty object on allocation failure
     }
     
-    (*doc)["name"] = name;
-    (*doc)["index"] = index;
-    (*doc)["type"] = type;
-    (*doc)["technology"] = technology;
-    (*doc)["trigger_pin"] = trigPin;
-    (*doc)["echo_pin"] = echoPin;
-    (*doc)["is_occupied"] = occupied;
-    (*doc)["current_distance"] = lastDistance;
-    (*doc)["last_updated"] = isoTime;
+    try {
+      (*doc)["name"] = name;
+      (*doc)["index"] = index;
+      (*doc)["type"] = type;
+      (*doc)["technology"] = technology;
+      (*doc)["trigger_pin"] = trigPin;
+      (*doc)["echo_pin"] = echoPin;
+      (*doc)["is_occupied"] = occupied;
+      (*doc)["current_distance"] = lastDistance;
+      (*doc)["last_updated"] = isoTime;
 
-    String payload;
-    serializeJson(*doc, payload);
-    delete doc;  // Free heap memory
-    return payload;
+      String payload;
+      serializeJson(*doc, payload);
+      delete doc;  // Free heap memory
+      return payload;
+    } catch (...) {
+      delete doc;
+      Serial.println("JSON serialization failed!");
+      return "{}";
+    }
   }
 
   void toJsonObject(JsonObject& obj) const override {
