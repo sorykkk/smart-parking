@@ -37,6 +37,7 @@ private:
       Serial.println(" connected!");
       Serial.println("MQTT Client ID: " + clientId);
       Serial.println("MQTT Username: " + mqttUsername);
+      Serial.println("MQTT Keep-Alive: 60s");
       return true;
     } else {
       Serial.print(" failed, rc=");
@@ -78,6 +79,7 @@ public:
   bool connect() {
     mqttClient.setServer(mqttBroker.c_str(), mqttPort);
     mqttClient.setBufferSize(2048);
+    mqttClient.setKeepAlive(60); // Set keep-alive to 60 seconds (default is 15)
     
     Serial.println("\nConnecting to MQTT broker...");
     return reconnect();

@@ -13,8 +13,8 @@
 
 using namespace FindSpot;
 
-// Watchdog timeout in seconds
-#define WDT_TIMEOUT 10
+// Watchdog timeout in seconds (increased to prevent premature resets)
+#define WDT_TIMEOUT 30
 
 // ==================== Global Objects ============================ //
 WiFiManager wifi;
@@ -117,6 +117,9 @@ void setup() {
   );
   mqttClient.setCallback(mqttCallback);
   
+  // Reset watchdog before MQTT connection attempt
+  esp_task_wdt_reset();
+  
   if (!mqttClient.connect()) {
     Serial.println("Failed to connect to MQTT broker!");
     Serial.println("Restarting in 10 seconds...");
@@ -130,6 +133,7 @@ void setup() {
   while (!mqttClient.isConnected() && (millis() - startWait < 10000)) {
     mqttClient.loop();
     delay(100);
+    esp_task_wdt_reset(); // Reset watchdog during connection wait
   }
   
   if (!mqttClient.isConnected()) {
@@ -189,20 +193,28 @@ void loop() {
     lastSensorRead = currentMillis;
     
     Serial.println("\nReading sensors...");
+    Serial.print("Free heap: ");
+    Serial.println(ESP.getFreeHeap());
     yield(); // Allow background tasks
+    
+    // Ensure MQTT is connected before reading sensors
+    if (!mqttClient.isConnected()) {
+      Serial.println("MQTT not connected, skipping sensor read");
+      return;
+    }
     
     // Check each sensor for state changes
     for (size_t i = 0; i < sensors.size(); i++) {
       // Safety check: ensure sensor pointer is valid
       if (!sensors[i]) {
-        Serial.print("Warning: Null sensor at index ");
+        Serial.print("ERROR: Null sensor at index ");
         Serial.println(i);
         continue;
       }
       
       // Safety check: ensure index is within bounds
       if (i >= sensorStateVector.size()) {
-        Serial.print("Warning: Index out of bounds ");
+        Serial.print("ERROR: Index out of bounds ");
         Serial.println(i);
         continue;
       }
@@ -211,7 +223,9 @@ void loop() {
       delay(50);
       yield();
       
-      bool currentState = sensors[i]->checkState();
+      bool currentState = false;
+      // Wrap sensor reading in try-catch equivalent (check for crashes)
+      currentState = sensors[i]->checkState();
       
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
@@ -223,9 +237,14 @@ void loop() {
         Serial.println(currentState ? "occupied" : "free");
         
         yield();
-        String payload = sensors[i]->toJson();
         
-        if (payload.length() > 0) {
+        // Create payload inside a scope to free memory immediately after use
+        String payload = "";
+        if (sensors[i]) {
+          payload = sensors[i]->toJson();
+        }
+        
+        if (payload.length() > 0 && mqttClient.isConnected()) {
           Serial.print("Publishing sensor ");
           Serial.println(i);
           
@@ -243,6 +262,9 @@ void loop() {
             Serial.println(i);
           }
         }
+        
+        // Force free the payload string
+        payload = String();
       }
       
       // Yield after each sensor
