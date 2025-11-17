@@ -62,7 +62,15 @@ public:
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
-    long duration = pulseIn(echoPin, HIGH, 30000);
+    
+    // Use shorter timeout (25ms) to prevent blocking too long
+    long duration = pulseIn(echoPin, HIGH, 25000);
+    
+    // If pulseIn times out, it returns 0
+    if (duration == 0) {
+      return INVALID_DISTANCE;
+    }
+    
     long distance = (duration * 0.034 / 2);
 
     return (distance < DISTANCE_MIN_CM || distance > DISTANCE_MAX_CM) 

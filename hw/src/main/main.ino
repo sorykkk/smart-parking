@@ -2,6 +2,7 @@
 #include <vector>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "esp_task_wdt.h"
 #include "../Config.h"
 #include "../WiFiManager.h"
 #include "../DistanceSensor.h"
@@ -11,6 +12,9 @@
 #include "time.h"
 
 using namespace FindSpot;
+
+// Watchdog timeout in seconds
+#define WDT_TIMEOUT 10
 
 // ==================== Global Objects ============================ //
 WiFiManager wifi;
@@ -50,6 +54,11 @@ void setup() {
   Serial.println("╔═══════════════════════════════════════════════╗");
   Serial.println("║   FindSpot Smart Parking System - ESP32       ║");
   Serial.println("╚═══════════════════════════════════════════════╝");
+  
+  // Configure watchdog timer
+  Serial.println("\nConfiguring watchdog timer...");
+  esp_task_wdt_init(WDT_TIMEOUT, true);
+  esp_task_wdt_add(NULL);
   
   // Step 1: Connect to WiFi
   Serial.println("\nConnecting to WiFi...");
@@ -155,6 +164,9 @@ void setup() {
 
 // ==================== Main Loop ============================ //
 void loop() {
+  // Reset watchdog timer
+  esp_task_wdt_reset();
+  
   // Maintain MQTT connection
   mqttClient.loop();
   
@@ -175,6 +187,18 @@ void loop() {
     
     // Check each sensor for state changes
     for (size_t i = 0; i < sensors.size(); i++) {
+      // Safety check: ensure sensor pointer is valid
+      if (!sensors[i]) {
+        Serial.println("Warning: Null sensor at index " + String(i));
+        continue;
+      }
+      
+      // Safety check: ensure index is within bounds
+      if (i >= sensorStateVector.size()) {
+        Serial.println("Warning: Index out of bounds " + String(i));
+        continue;
+      }
+      
       bool currentState = sensors[i]->checkState();
       
       // Only publish if state changed
@@ -185,6 +209,9 @@ void loop() {
         
         String payload = sensors[i]->toJson();
         Serial.println("Publishing sensor data for sensor " + String(i));
+        
+        // Add small delay to prevent overwhelming MQTT
+        delay(10);
         
         if (mqttClient.publishSensorData(i, payload)) {
           sensorStateVector[i] = currentState;
