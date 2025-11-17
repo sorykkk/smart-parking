@@ -30,7 +30,7 @@
 	
 	async function getUserLocation() {
 		try {
-			console.log('🌍 Requesting user location...');
+			console.log('Requesting user location...');
 			const position = await Geolocation.getCurrentPosition({
 				enableHighAccuracy: true,
 				timeout: 10000,
@@ -40,24 +40,29 @@
 				lat: position.coords.latitude,
 				lon: position.coords.longitude
 			};
-			console.log('✅ User location acquired:', userLocation);
-		} catch (err) {
-			console.error('❌ Error getting location:', err);
-			console.error('Error code:', err.code);
-			console.error('Error message:', err.message);
+			console.log('User location acquired:', userLocation);
+		} catch (err: unknown) {
+			console.error('Error getting location:', err);
+			
+			// Type guard for GeolocationPositionError
+			const geoError = err as { code?: number; message?: string };
+			
+			if (geoError.message) {
+				console.error('Error message:', geoError.message);
+			}
 			
 			// Check if it's a permission error
-			if (err.code === 1) {
-				console.warn('⚠️ Location permission denied by user');
-			} else if (err.code === 2) {
-				console.warn('⚠️ Location position unavailable');
-			} else if (err.code === 3) {
-				console.warn('⚠️ Location request timeout');
+			if (geoError.code === 1) {
+				console.warn('Location permission denied by user');
+			} else if (geoError.code === 2) {
+				console.warn('Location position unavailable');
+			} else if (geoError.code === 3) {
+				console.warn('Location request timeout');
 			}
 			
 			// Default to Cluj-Napoca if location not available
 			userLocation = { lat: 46.7712, lon: 23.6236 };
-			console.log('🏙️ Using default location (Cluj-Napoca):', userLocation);
+			console.log('Using default location (Cluj-Napoca):', userLocation);
 		}
 	}
 	
@@ -128,27 +133,27 @@
 		
 		// Handle new device registration
 		socket.on('device_registered', (data: any) => {
-			console.log('🆕 New device registered:', data);
+			console.log('New device registered:', data);
 			// Refresh locations to show new device
 			fetchLocations();
 		});
 		
 		// Handle sensor registration
 		socket.on('sensor_registered', (data: any) => {
-			console.log('🔧 New sensor registered:', data);
+			console.log('New sensor registered:', data);
 			// Refresh locations to update sensor count
 			fetchLocations();
 		});
 		
 		// Handle real-time sensor updates
 		socket.on('sensor_update', (data: any) => {
-			console.log('📊 Sensor update:', data);
+			console.log('Sensor update:', data);
 			// Update specific location if we have real-time updates
 		});
 		
 		// Handle device status updates
 		socket.on('device_update', (data: any) => {
-			console.log('📱 Device status update:', data);
+			console.log('Device status update:', data);
 			// Update device status in the UI
 		});
 		
@@ -250,8 +255,8 @@
 	
 	$: sortedLocations = userLocation 
 		? [...locations].sort((a, b) => {
-				const distA = calculateDistance(userLocation.lat, userLocation.lon, a.latitude, a.longitude);
-				const distB = calculateDistance(userLocation.lat, userLocation.lon, b.latitude, b.longitude);
+				const distA = calculateDistance(userLocation!.lat, userLocation!.lon, a.latitude, a.longitude);
+				const distB = calculateDistance(userLocation!.lat, userLocation!.lon, b.latitude, b.longitude);
 				return distA - distB;
 			})
 		: locations;
@@ -265,8 +270,8 @@
 <div class="app">
 	<header>
 		<div class="container">
-			<h1>🅿️ FindSpot</h1>
-			<p class="subtitle">Find your perfect parking spot</p>
+			<h1>FindSpot</h1>
+			<p class="subtitle">Don't stress about parking</p>
 		</div>
 	</header>
 	
@@ -278,8 +283,8 @@
 			</div>
 		{:else if error}
 			<div class="error">
-				<p>⚠️ {error}</p>
-				<button on:click={fetchLocations}>Retry</button>
+				<p>{error}</p>
+				<button on:click={() => fetchLocations()}>Retry</button>
 			</div>
 		{:else}
 			<div class="map-section">
@@ -298,7 +303,7 @@
 							on:click={findNearestParking}
 							disabled={!userLocation}
 						>
-							🎯 Find Nearest Parking
+							Find Nearest Parking
 						</button>
 					{:else}
 						<div class="route-info">
@@ -307,11 +312,11 @@
 								<p>{selectedLocation?.address}</p>
 								<p><strong>{selectedLocation?.available_spots}/{selectedLocation?.total_spots}</strong> spots available</p>
 								<p class="selection-method">
-									{selectionMethod === 'nearest' ? '🎯 Auto-selected (nearest)' : '🧭 Manually selected'}
+									{selectionMethod === 'nearest' ? 'Auto-selected (nearest)' : 'Manually selected'}
 								</p>
 							</div>
 							<button class="cancel-btn" on:click={cancelRoute}>
-								❌ Cancel Route
+								Cancel Route
 							</button>
 						</div>
 					{/if}
