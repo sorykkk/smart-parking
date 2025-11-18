@@ -42,24 +42,17 @@ public:
   /// @brief Calculate the `lastDistance`, and set `occupied` if the parking spot is to consider taken 
   /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
-    bool previousState = occupied;
-    
-    // Safely get distance with error handling
-    long distance = getDistance();
-    
-    // Always print distance for debugging
-    Serial.print(distance);
-    Serial.print("cm ");
-    
-    if (distance == INVALID_DISTANCE) {
-      Serial.print("(invalid) ");
-      // Keep previous state on invalid reading
-      return occupied;
-    }
-    
-    lastDistance = distance;
+
+    lastDistance = getDistance();
+    Serial.print(lastDistance);
+    Serial.println(" cm");
+
     // Occupied when distance is valid AND within the threshold (car is close enough)
-    occupied = (lastDistance <= DISTANCE_MAX_CM);
+    if(lastDistance <= DISTANCE_MAX_CM && lastDistance >= DISTANCE_MIN_CM)
+      occupied = true;
+    else {
+      occupied = false;
+    }
 
     // Update timestamp - simplified to avoid strftime issues
     strcpy(isoTime, "2025-01-01T00:00:00Z");

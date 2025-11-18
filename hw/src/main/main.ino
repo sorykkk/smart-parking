@@ -152,9 +152,9 @@ void setup() {
   
   // Setup ultrasonic sensors (each represents a parking spot)
   // Format: DistanceSensor(device, technology, index, trigger_pin, echo_pin)
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 13, 12));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 22, 23));
+  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
+  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
 
   for (auto& sensor : sensors) {
     sensor->begin();
@@ -232,13 +232,10 @@ void loop() {
       currentState = sensors[i]->checkState();
       
       Serial.print(currentState ? "occupied" : "free");
-      Serial.print(" (was: ");
-      Serial.print(sensorStateVector[i] ? "occupied" : "free");
-      Serial.println(")");
       
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
-        Serial.print("    ↳ State changed! Publishing...");
+        Serial.print("    State changed! Publishing...");
         
         yield();
         
