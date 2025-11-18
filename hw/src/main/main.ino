@@ -81,16 +81,22 @@ void setup() {
     attempts++;
   }
   if (getLocalTime(&timeinfo)) {
-    Serial.println("\nime synchronized!");
+    Serial.println("\nTime synchronized!");
     Serial.print("   Current time: ");
     Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
   } else {
     Serial.println("\nTime sync failed, continuing anyway...");
   }
   
+  // Reset watchdog before HTTP request
+  esp_task_wdt_reset();
+  
   // Step 3: Register device via HTTP and get MQTT credentials
   Serial.println("\nRegistering device with backend...");
   RegistrationResponse regResponse = httpClient.registerDevice(esp32device);
+  
+  // Reset watchdog after HTTP request
+  esp_task_wdt_reset();
   
   if (!regResponse.success) {
     Serial.println("Device registration failed: " + regResponse.error_message);
