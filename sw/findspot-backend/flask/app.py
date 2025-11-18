@@ -111,19 +111,20 @@ mqtt_client = None
 
 def on_connect(client, userdata, flags, rc):
     """MQTT connection callback"""
+    print(f"\n🔌 MQTT on_connect callback fired with rc={rc}")
     if rc == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
+        print(f"✓ Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
         
         # Subscribe to individual sensor updates: device/{device_id}/sensors/{sensor_index}
-        client.subscribe("device/+/sensors/+")
-        print("Subscribed to topic: device/+/sensors/+")
+        result1, mid1 = client.subscribe("device/+/sensors/+")
+        print(f"✓ Subscribed to 'device/+/sensors/+' (result={result1}, mid={mid1})")
         
         # Subscribe to device status updates: device/{device_id}/status
-        client.subscribe("device/+/status")
-        print("Subscribed to topic: device/+/status")
+        result2, mid2 = client.subscribe("device/+/status")
+        print(f"✓ Subscribed to 'device/+/status' (result={result2}, mid={mid2})")
         
     else:
-        print(f"Failed to connect to MQTT Broker, return code {rc}")
+        print(f"❌ Failed to connect to MQTT Broker, return code {rc}")
 
 
 def on_message(client, userdata, msg):
@@ -314,17 +315,40 @@ def broadcast_parking_update():
 def init_mqtt():
     """Initialize MQTT client"""
     global mqtt_client
-    mqtt_client = mqtt.Client()
+    print(f"\n🔧 Initializing MQTT client...")
+    print(f"  Broker: {MQTT_BROKER}:{MQTT_PORT}")
+    print(f"  Username: {MQTT_USER}")
+    
+    mqtt_client = mqtt.Client(client_id="flask_backend_subscriber")
     mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
     
+    # Add disconnect callback for debugging
+    def on_disconnect(client, userdata, rc):
+        if rc != 0:
+            print(f"⚠ Unexpected MQTT disconnect: {rc}")
+    mqtt_client.on_disconnect = on_disconnect
+    
     try:
+        print(f"🔌 Connecting to MQTT broker...")
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.loop_start()
-        print("MQTT Client initialized and loop started")
+        print(f"✓ MQTT loop started")
+        
+        # Give it a moment to connect
+        import time
+        time.sleep(1)
+        
+        if mqtt_client.is_connected():
+            print(f"✓ MQTT client confirmed connected")
+        else:
+            print(f"⚠ MQTT client not connected yet, waiting for callback...")
+            
     except Exception as e:
-        print(f"Failed to connect to MQTT broker: {e}")
+        print(f"❌ Failed to connect to MQTT broker: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # REST API Endpoints
