@@ -116,15 +116,20 @@ def on_connect(client, userdata, flags, rc):
         print(f"✓ Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
         
         # Subscribe to individual sensor updates: device/{device_id}/sensors/{sensor_index}
-        result1, mid1 = client.subscribe("device/+/sensors/+")
+        result1, mid1 = client.subscribe("device/+/sensors/+", qos=0)
         print(f"✓ Subscribed to 'device/+/sensors/+' (result={result1}, mid={mid1})")
         
         # Subscribe to device status updates: device/{device_id}/status
-        result2, mid2 = client.subscribe("device/+/status")
+        result2, mid2 = client.subscribe("device/+/status", qos=0)
         print(f"✓ Subscribed to 'device/+/status' (result={result2}, mid={mid2})")
         
     else:
-        print(f"❌ Failed to connect to MQTT Broker, return code {rc}")
+        print(f"✗ Failed to connect to MQTT Broker, return code {rc}")
+
+
+def on_subscribe(client, userdata, mid, granted_qos):
+    """Callback when subscription is confirmed"""
+    print(f"✓ Subscription confirmed: mid={mid}, granted_qos={granted_qos}")
 
 
 def on_message(client, userdata, msg):
@@ -327,15 +332,18 @@ def init_mqtt():
     print(f"  Broker: {MQTT_BROKER}:{MQTT_PORT}")
     print(f"  Username: {MQTT_USER}")
     
-    mqtt_client = mqtt.Client(client_id="flask_backend_subscriber")
+    mqtt_client = mqtt.Client(client_id="flask_backend_subscriber", protocol=mqtt.MQTTv311)
     mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
+    mqtt_client.on_subscribe = on_subscribe
     
     # Add disconnect callback for debugging
     def on_disconnect(client, userdata, rc):
         if rc != 0:
             print(f"⚠ Unexpected MQTT disconnect: {rc}")
+        else:
+            print(f"ℹ MQTT client disconnected cleanly")
     mqtt_client.on_disconnect = on_disconnect
     
     try:
