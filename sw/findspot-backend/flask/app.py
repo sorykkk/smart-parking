@@ -129,30 +129,38 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     """MQTT message callback - processes sensor data and auto-registers sensors"""
+    print(f"\n🔔 on_message FIRED! Topic: {msg.topic}")
     try:
         topic = msg.topic
         payload = json.loads(msg.payload.decode())
-        print(f"\n📨 Received MQTT message:")
+        print(f"📨 Received MQTT message:")
         print(f"  Topic: {topic}")
         print(f"  Payload: {json.dumps(payload, indent=2)}")
         
         # Handle individual sensor data: device/{device_id}/sensors/{sensor_index}
         if topic.startswith("device/") and "/sensors/" in topic:
             parts = topic.split('/')
+            print(f"  Topic parts: {parts}")
             if len(parts) == 4:
                 device_id = int(parts[1])
                 sensor_index = int(parts[3])
-                print(f"  Parsed as: device_id={device_id}, sensor_index={sensor_index}")
+                print(f"  ✓ Parsed as: device_id={device_id}, sensor_index={sensor_index}")
+                print(f"  ➡️ Calling process_single_sensor_data...")
                 process_single_sensor_data(device_id, sensor_index, payload)
+            else:
+                print(f"  ✗ Wrong number of parts: {len(parts)}")
         # Handle device status updates: device/{device_id}/status
         elif topic.startswith("device/") and topic.endswith("/status"):
             parts = topic.split('/')
             if len(parts) == 3:
                 device_id = int(parts[1])
                 process_device_status(device_id, payload)
+        else:
+            print(f"  ⚠️ Topic doesn't match expected patterns")
             
     except json.JSONDecodeError as e:
         print(f"✗ Failed to parse JSON: {e}")
+        print(f"  Raw payload: {msg.payload}")
     except Exception as e:
         print(f"✗ Error processing MQTT message: {e}")
         import traceback
