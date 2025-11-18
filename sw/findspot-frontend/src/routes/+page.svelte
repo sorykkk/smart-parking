@@ -123,11 +123,11 @@
 		});
 		
 		socket.on('connect', () => {
-			console.log('WebSocket connected');
+			console.log('✓ WebSocket connected to', API_URL);
 		});
 		
 		socket.on('parking_update', (data: any[]) => {
-			console.log('Received parking update:', data);
+			console.log('📡 Received parking update:', data);
 			// Transform backend data to frontend format
 			locations = data.map((device: any) => ({
 				id: device.id,
@@ -142,6 +142,7 @@
 			})).filter((location: ParkingLocation) => 
 				location.latitude && location.longitude
 			);
+			console.log(`✓ Updated ${locations.length} locations:`, locations.map(l => `${l.name}: ${l.available_spots}/${l.total_spots} (${l.status})`));
 		});
 		
 		// Handle new device registration

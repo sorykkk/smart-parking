@@ -131,7 +131,9 @@ def on_message(client, userdata, msg):
     try:
         topic = msg.topic
         payload = json.loads(msg.payload.decode())
-        print(f"Received MQTT message on {topic}: {payload}")
+        print(f"\n📨 Received MQTT message:")
+        print(f"  Topic: {topic}")
+        print(f"  Payload: {json.dumps(payload, indent=2)}")
         
         # Handle individual sensor data: device/{device_id}/sensors/{sensor_index}
         if topic.startswith("device/") and "/sensors/" in topic:
@@ -139,6 +141,7 @@ def on_message(client, userdata, msg):
             if len(parts) == 4:
                 device_id = int(parts[1])
                 sensor_index = int(parts[3])
+                print(f"  Parsed as: device_id={device_id}, sensor_index={sensor_index}")
                 process_single_sensor_data(device_id, sensor_index, payload)
         # Handle device status updates: device/{device_id}/status
         elif topic.startswith("device/") and topic.endswith("/status"):
@@ -162,12 +165,13 @@ def process_single_sensor_data(device_id, sensor_index, data):
             # Validate device exists
             device = Device.query.get(device_id)
             if not device:
-                print(f"Device {device_id} not found for sensor data")
+                print(f"❌ Device {device_id} not found for sensor data")
                 return
             
-            # Update device status
+            # Update device status and last_seen FIRST, before any validation
             device.last_seen = datetime.now(timezone.utc)
             device.status = 'online'
+            print(f"✓ Updated device {device_id} status to 'online', last_seen: {device.last_seen}")
             
             sensor_name = data.get('name', f'sensor_{sensor_index}')
             distance = data.get('current_distance')
@@ -176,10 +180,12 @@ def process_single_sensor_data(device_id, sensor_index, data):
             echo_pin = data.get('echo_pin')
             
             if distance is None:
-                print(f"Missing distance in sensor data: {data}")
+                print(f"❌ Missing distance in sensor data: {data}")
+                # Still commit device status update even if sensor data is invalid
+                db.session.commit()
                 return
             
-            print(f"Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
+            print(f"📊 Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
             
             # Find or create sensor
             sensor = DistanceSensor.query.filter_by(
@@ -201,7 +207,9 @@ def process_single_sensor_data(device_id, sensor_index, data):
                     is_occupied=is_occupied
                 )
                 db.session.add(sensor)
-                print(f"Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
+                db.session.flush()  # Flush to get sensor ID before commit
+                print(f"✓ Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
+                print(f"  Sensor ID: {sensor.id}, trigger_pin: {trigger_pin}, echo_pin: {echo_pin}")
                 
                 # Notify frontend about new sensor
                 socketio.emit('sensor_registered', {
@@ -214,8 +222,21 @@ def process_single_sensor_data(device_id, sensor_index, data):
                 sensor.current_distance = distance
                 sensor.is_occupied = is_occupied
                 sensor.last_updated = datetime.now(timezone.utc)
+                print(f"✓ Updated existing sensor {sensor_index}: distance={distance}cm, occupied={is_occupied}")
             
+            # Commit all changes to database
             db.session.commit()
+            print(f"✓ Database changes committed for device {device_id}, sensor {sensor_index}")
+            
+            # Verify sensor was actually saved
+            sensor_check = DistanceSensor.query.filter_by(
+                device_id=device_id, 
+                index=sensor_index
+            ).first()
+            if sensor_check:
+                print(f"✓ Sensor verified in database: {sensor_check.name} (occupied={sensor_check.is_occupied})")
+            else:
+                print(f"⚠ WARNING: Sensor not found in database after commit!")
             
             # Real-time update to frontend
             socketio.emit('sensor_update', {
@@ -236,13 +257,18 @@ def process_single_sensor_data(device_id, sensor_index, data):
             
             # Send full parking update to ensure frontend has latest data
             parking_data = get_all_parking_data()
+            print(f"📡 Broadcasting parking update with {len(parking_data)} devices")
+            if len(parking_data) > 0:
+                for dev in parking_data:
+                    if dev['id'] == device_id:
+                        print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
             socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
             
-            print(f"Successfully processed sensor {sensor_index} data for device {device_id}")
+            print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
             
         except Exception as e:
             db.session.rollback()
-            print(f"Error processing sensor data: {e}")
+            print(f"❌ Error processing sensor data: {e}")
             import traceback
             traceback.print_exc()
 

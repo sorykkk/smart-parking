@@ -101,10 +101,11 @@
 		locations.forEach(location => {
 			// Determine marker color based on availability
 			const availability = location.total_spots > 0 ? location.available_spots / location.total_spots : 0;
-			const isActive = location.status === 'online';
+			// Consider device active if it's online OR if it has sensors (registered with data)
+			const isActive = location.status === 'online' || (location.status === 'registered' && location.total_spots > 0);
 			
 			let color = 'grey'; // Default for inactive/no spots
-			if (isActive) {
+			if (isActive && location.total_spots > 0) {
 				color = availability > 0.5 ? 'green' : availability > 0.2 ? 'orange' : 'red';
 			}
 			
