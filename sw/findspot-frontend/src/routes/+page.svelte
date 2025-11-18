@@ -87,11 +87,9 @@
 				longitude: device.longitude,
 				address: device.location || device.name,
 				status: device.status || 'registered',
-				total_spots: device.parking_spots?.length || 0,
-				available_spots: device.parking_spots?.filter((spot: any) => !spot.is_occupied).length || 0,
-				occupancy_rate: device.parking_spots?.length > 0 
-					? (device.parking_spots.filter((spot: any) => spot.is_occupied).length / device.parking_spots.length) * 100 
-					: 0
+				total_spots: device.total_spots || 0,
+				available_spots: device.available_spots || 0,
+				occupancy_rate: device.occupancy_rate || 0
 			})).filter((location: ParkingLocation) => 
 				// Only show locations that have valid coordinates
 				location.latitude && location.longitude
@@ -128,9 +126,22 @@
 			console.log('WebSocket connected');
 		});
 		
-		socket.on('parking_update', (data: ParkingLocation[]) => {
+		socket.on('parking_update', (data: any[]) => {
 			console.log('Received parking update:', data);
-			locations = data;
+			// Transform backend data to frontend format
+			locations = data.map((device: any) => ({
+				id: device.id,
+				name: device.name,
+				latitude: device.latitude,
+				longitude: device.longitude,
+				address: device.location || device.name,
+				status: device.status || 'registered',
+				total_spots: device.total_spots || 0,
+				available_spots: device.available_spots || 0,
+				occupancy_rate: device.occupancy_rate || 0
+			})).filter((location: ParkingLocation) => 
+				location.latitude && location.longitude
+			);
 		});
 		
 		// Handle new device registration
@@ -150,7 +161,8 @@
 		// Handle real-time sensor updates
 		socket.on('sensor_update', (data: any) => {
 			console.log('Sensor update:', data);
-			// Update specific location if we have real-time updates
+			// Refresh locations to get updated sensor data
+			fetchLocations();
 		});
 		
 		// Handle device status updates

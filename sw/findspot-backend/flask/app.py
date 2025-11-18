@@ -234,6 +234,10 @@ def process_single_sensor_data(device_id, sensor_index, data):
                 'last_seen': device.last_seen.isoformat()
             })
             
+            # Send full parking update to ensure frontend has latest data
+            parking_data = get_all_parking_data()
+            socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+            
             print(f"Successfully processed sensor {sensor_index} data for device {device_id}")
             
         except Exception as e:
