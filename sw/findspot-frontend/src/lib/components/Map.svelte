@@ -22,46 +22,51 @@
 	let watchId: number | null = null;
 	let userDraggedMap = false;
 	
-	onMount(async () => {
+	onMount(() => {
 		if (!browser) return;
 		
-		// Dynamically import Leaflet only on the client side
-		const leafletModule = await import('leaflet');
-		L = leafletModule.default;
-		
-		// Import CSS dynamically
-		await import('leaflet/dist/leaflet.css');
-		
-		// Initialize map
-	const defaultCenter: [number, number] = userLocation 
-		? [userLocation.lat, userLocation.lon]
-		: [45.7489, 21.2087]; // Timisoara default		map = L.map(mapContainer).setView(defaultCenter, 16);
-		
-		// Add OpenStreetMap tiles
-		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			attribution: '© OpenStreetMap contributors',
-			maxZoom: 19
-		}).addTo(map);
-		
-		// Add user location as a circle if available
-		if (userLocation) {
-			updateUserLocation();
-			lastUserCenterZoom = 16;
-		}
-		
-		// Add map event listeners to track when user moves away from their location
-		map.on('moveend', checkIfNeedRecenter);
-		map.on('zoomend', checkIfNeedRecenter);
-		
-		// Add drag event listeners to detect when user manually moves the map
-		map.on('dragstart', () => {
-			if (autoFollowUser) {
-				userDraggedMap = true;
-				console.log('🖱️ User dragged map - pausing auto-follow');
+		// Async initialization
+		(async () => {
+			// Dynamically import Leaflet only on the client side
+			const leafletModule = await import('leaflet');
+			L = leafletModule.default;
+			
+			// Import CSS dynamically
+			await import('leaflet/dist/leaflet.css');
+			
+			// Initialize map
+			const defaultCenter: [number, number] = userLocation 
+				? [userLocation.lat, userLocation.lon]
+				: [45.7489, 21.2087]; // Timisoara default
+			
+			map = L.map(mapContainer).setView(defaultCenter, 16);
+			
+			// Add OpenStreetMap tiles
+			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				attribution: '© OpenStreetMap contributors',
+				maxZoom: 19
+			}).addTo(map);
+			
+			// Add user location as a circle if available
+			if (userLocation) {
+				updateUserLocation();
+				lastUserCenterZoom = 16;
 			}
-		});
-		
-		updateMarkers();
+			
+			// Add map event listeners to track when user moves away from their location
+			map.on('moveend', checkIfNeedRecenter);
+			map.on('zoomend', checkIfNeedRecenter);
+			
+			// Add drag event listeners to detect when user manually moves the map
+			map.on('dragstart', () => {
+				if (autoFollowUser) {
+					userDraggedMap = true;
+					console.log('🖱️ User dragged map - pausing auto-follow');
+				}
+			});
+			
+			updateMarkers();
+		})();
 		
 		return () => {
 			if (map) {
