@@ -79,6 +79,18 @@
 			if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			
 			const data = await response.json();
+			
+			// Log detailed data for debugging
+			console.log('Raw API response:', data);
+			data.forEach((device: any) => {
+				console.log(`  Device ${device.id} (${device.name}):`, {
+					total_spots: device.total_spots,
+					available_spots: device.available_spots,
+					status: device.status,
+					sensors: device.sensors?.length || 0
+				});
+			});
+			
 			// Transform the data to match frontend expectations
 			locations = data.map((device: any) => ({
 				id: device.id,
@@ -96,6 +108,7 @@
 			);
 			
 			console.log('Successfully loaded locations:', locations.length);
+			console.log('Transformed locations:', locations.map(l => `${l.name}: ${l.available_spots}/${l.total_spots} (${l.status})`));
 			error = null;
 		} catch (err) {
 			console.error('Error fetching locations:', err);
@@ -128,6 +141,19 @@
 		
 		socket.on('parking_update', (data: any[]) => {
 			console.log('📡 Received parking update:', data);
+			
+			// Log detailed data for debugging
+			data.forEach(device => {
+				console.log(`  Device ${device.id} (${device.name}):`, {
+					total_spots: device.total_spots,
+					available_spots: device.available_spots,
+					status: device.status,
+					sensors: device.sensors?.length || 0,
+					latitude: device.latitude,
+					longitude: device.longitude
+				});
+			});
+			
 			// Transform backend data to frontend format
 			locations = data.map((device: any) => ({
 				id: device.id,
@@ -155,15 +181,13 @@
 		// Handle sensor registration
 		socket.on('sensor_registered', (data: any) => {
 			console.log('New sensor registered:', data);
-			// Refresh locations to update sensor count
-			fetchLocations();
+			// The backend will send a parking_update event, no need to fetch
 		});
 		
 		// Handle real-time sensor updates
 		socket.on('sensor_update', (data: any) => {
 			console.log('Sensor update:', data);
-			// Refresh locations to get updated sensor data
-			fetchLocations();
+			// The backend will send a parking_update event, no need to fetch
 		});
 		
 		// Handle device status updates

@@ -52,12 +52,24 @@ MQTT_PORT = int(os.getenv('MQTT_PORT', 1883))
 MQTT_USER = os.getenv('MQTT_USER', 'flask_backend')
 MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'backend_password')
 
-# MQTT Broker address for external devices (ESP32)
-# For ESP32 to connect, this must be the actual IP, not localhost
-MQTT_BROKER_EXTERNAL = os.getenv('MQTT_BROKER_EXTERNAL', '192.168.1.101')
+# Device timeout configuration (in seconds)
+DEVICE_TIMEOUT = int(os.getenv('DEVICE_TIMEOUT', 60))  # Default: 60 seconds
 
 # ESP32 MQTT Credentials Configuration
 # ESP32 generates and sends its own credentials during registration
+
+def is_device_online(device):
+    """Check if device is considered online based on last_seen timestamp"""
+    if not device.last_seen:
+        return False
+    
+    # Ensure last_seen is timezone-aware
+    last_seen = device.last_seen
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=timezone.utc)
+    
+    time_since_last_seen = (datetime.now(timezone.utc) - last_seen).total_seconds()
+    return time_since_last_seen <= DEVICE_TIMEOUT
 
 def create_mqtt_user(username, password):
     """Add MQTT user to mosquitto passwd file - Local Development Version"""
@@ -286,7 +298,7 @@ def process_single_sensor_data(device_id, sensor_index, data):
             for dev in parking_data:
                 if dev['id'] == device_id:
                     print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
-        socketio.emit('parking_update', parking_data, namespace='/')
+        socketio.emit('parking_update', parking_data)
         
         print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
         
@@ -334,7 +346,7 @@ def broadcast_parking_update():
     """Broadcast parking updates to all connected WebSocket clients"""
     try:
         parking_data = get_all_parking_data()
-        socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+        socketio.emit('parking_update', parking_data)
         print(f"Broadcasted parking update to WebSocket clients")
     except Exception as e:
         print(f"Error broadcasting update: {e}")
@@ -502,13 +514,13 @@ def register_iot_device():
                 print(f"⚠ Warning: Could not verify MQTT credentials for {mqtt_username}")
             
             print(f"✓ Device already registered: {existing_device.id} ({name}) with MAC: {mac_address_orig}")
-            print(f"  Returning MQTT config: broker={MQTT_BROKER_EXTERNAL}:{MQTT_PORT}, user={mqtt_username}")
+            print(f"  Returning MQTT config: broker={MQTT_BROKER}:{MQTT_PORT}, user={mqtt_username}")
             
             return jsonify({
                 'device_id': existing_device.id,
                 'mqtt_username': mqtt_username,
                 'mqtt_password': mqtt_password,
-                'mqtt_broker': MQTT_BROKER_EXTERNAL,
+                'mqtt_broker': MQTT_BROKER,
                 'mqtt_port': MQTT_PORT,
                 'sensor_topic': f'device/{existing_device.id}/sensors',
                 'status': existing_device.status,
@@ -553,7 +565,7 @@ def register_iot_device():
             'device_id': new_device.id,
             'mqtt_username': mqtt_username,
             'mqtt_password': mqtt_password,
-            'mqtt_broker': MQTT_BROKER_EXTERNAL,
+            'mqtt_broker': MQTT_BROKER,
             'mqtt_port': MQTT_PORT,
             'sensor_topic': f'device/{new_device.id}/sensors',
             'status': 'registered',
@@ -638,26 +650,37 @@ def get_parking_status():
         
         for device in devices:
             sensors = DistanceSensor.query.filter_by(device_id=device.id).all()
+            total_spots = len(sensors)
+            available_spots = sum(1 for s in sensors if not s.is_occupied)
+            
+            # Determine actual device status based on last_seen timestamp
+            actual_status = 'online' if is_device_online(device) else 'offline'
+            
+            # Update device status in database if it changed
+            if device.status != actual_status and actual_status == 'offline':
+                device.status = 'offline'
+                db.session.commit()
+                print(f"⚠️ Device {device.id} marked as offline (no heartbeat for {DEVICE_TIMEOUT}s)")
+            
             device_data = {
                 'id': device.id,
                 'name': device.name,
                 'location': device.location,
                 'latitude': float(device.latitude) if device.latitude else None,
                 'longitude': float(device.longitude) if device.longitude else None,
-                'status': device.status,
+                'status': actual_status,
                 'last_seen': device.last_seen.isoformat() if device.last_seen else None,
-                'parking_spots': []
+                'total_spots': total_spots,
+                'available_spots': available_spots,
+                'occupancy_rate': round((total_spots - available_spots) / total_spots * 100, 1) if total_spots > 0 else 0,
+                'sensors': [{
+                    'name': s.name,
+                    'index': s.index,
+                    'is_occupied': s.is_occupied,
+                    'current_distance': s.current_distance,
+                    'last_updated': s.last_updated.isoformat() if s.last_updated else None
+                } for s in sensors]
             }
-            
-            for sensor in sensors:
-                spot_data = {
-                    'name': sensor.name,
-                    'index': sensor.index,
-                    'is_occupied': sensor.is_occupied,
-                    'current_distance': sensor.current_distance,
-                    'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
-                }
-                device_data['parking_spots'].append(spot_data)
             
             parking_data.append(device_data)
         
@@ -745,13 +768,22 @@ def get_all_parking_data():
         total_spots = len(sensors)
         available_spots = sum(1 for s in sensors if not s.is_occupied)
         
+        # Determine actual device status based on last_seen timestamp
+        actual_status = 'online' if is_device_online(device) else 'offline'
+        
+        # Update device status in database if it changed
+        if device.status != actual_status and actual_status == 'offline':
+            device.status = 'offline'
+            db.session.commit()
+            print(f"⚠️ Device {device.id} marked as offline (no heartbeat for {DEVICE_TIMEOUT}s)")
+        
         device_data = {
             'id': device.id,
             'name': device.name,
             'location': device.location,
             'latitude': float(device.latitude) if device.latitude else None,
             'longitude': float(device.longitude) if device.longitude else None,
-            'status': device.status,
+            'status': actual_status,
             'last_seen': device.last_seen.isoformat() if device.last_seen else None,
             'total_spots': total_spots,
             'available_spots': available_spots,
@@ -767,6 +799,34 @@ def get_all_parking_data():
         result.append(device_data)
     
     return result
+
+
+def check_device_timeouts():
+    """Background task to periodically check for offline devices and notify frontend"""
+    import time
+    while True:
+        try:
+            time.sleep(DEVICE_TIMEOUT // 2)  # Check twice per timeout period
+            
+            with app.app_context():
+                devices = Device.query.filter_by(status='online').all()
+                devices_went_offline = []
+                
+                for device in devices:
+                    if not is_device_online(device):
+                        device.status = 'offline'
+                        devices_went_offline.append(device.id)
+                        print(f"⚠️ Device {device.id} ({device.name}) marked as offline - no heartbeat for {DEVICE_TIMEOUT}s")
+                
+                if devices_went_offline:
+                    db.session.commit()
+                    # Broadcast updated parking data to all clients
+                    parking_data = get_all_parking_data()
+                    socketio.emit('parking_update', parking_data)
+                    print(f"📡 Broadcast parking update: {len(devices_went_offline)} device(s) went offline")
+                    
+        except Exception as e:
+            print(f"Error in device timeout checker: {e}")
 
 
 # WebSocket Events
@@ -850,6 +910,11 @@ if __name__ == '__main__':
     
     # Initialize MQTT client
     init_mqtt()
+    
+    # Start background device timeout checker
+    timeout_thread = threading.Thread(target=check_device_timeouts, daemon=True)
+    timeout_thread.start()
+    print(f"✓ Device timeout checker started (timeout: {DEVICE_TIMEOUT}s)")
     
     # Get server configuration from environment
     host = os.getenv('HOST', '0.0.0.0')

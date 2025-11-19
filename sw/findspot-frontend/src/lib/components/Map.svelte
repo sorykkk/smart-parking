@@ -12,7 +12,7 @@
 	
 	let mapContainer: HTMLElement;
 	let map: any;
-	let markers: any[] = [];
+	let markers: Map<number, any> = new Map(); // Use Map to track markers by location ID
 	let userMarker: any = null;
 	let routeControl: any = null;
 	let L: any;
@@ -96,11 +96,18 @@
 	function updateMarkers() {
 		if (!map || !L) return;
 		
-		// Clear existing markers (but keep user location)
-		markers.forEach(marker => marker.remove());
-		markers = [];
+		// Track which location IDs we've seen in this update
+		const currentLocationIds = new Set(locations.map(loc => loc.id));
 		
-		// Add markers for each parking location
+		// Remove markers for locations that no longer exist
+		for (const [locationId, marker] of markers.entries()) {
+			if (!currentLocationIds.has(locationId)) {
+				marker.remove();
+				markers.delete(locationId);
+			}
+		}
+		
+		// Update or create markers for each parking location
 		locations.forEach(location => {
 			// Determine marker color based on availability
 			const availability = location.total_spots > 0 ? location.available_spots / location.total_spots : 0;
@@ -112,31 +119,36 @@
 				color = availability > 0.5 ? 'green' : availability > 0.2 ? 'orange' : 'red';
 			}
 			
-			const icon = L.icon({
-				iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-				shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-				iconSize: [25, 41],
-				iconAnchor: [12, 41],
-				popupAnchor: [1, -34],
-				shadowSize: [41, 41]
-			});
+			const existingMarker = markers.get(location.id);
 			
-			const marker = L.marker([location.latitude, location.longitude], { icon })
-				.addTo(map)
-			.bindPopup(`
-				<div style="min-width: 200px;">
-					<h3 style="margin: 0 0 0.5rem 0;">${location.address}</h3>
-					<p style="margin: 0.25rem 0; font-size: 0.9rem; color: #666;">Device: ${location.name}</p>
-						<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f3f4f6; border-radius: 4px;">
-							<strong>${location.available_spots}/${location.total_spots}</strong> spots available
-							<div style="margin-top: 0.25rem; background: #ddd; height: 6px; border-radius: 3px; overflow: hidden;">
-								<div style="width: ${availability * 100}%; height: 100%; background: ${color};"></div>
+			// If marker exists, update its icon and popup content
+			if (existingMarker) {
+				const icon = L.icon({
+					iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+					shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+					iconSize: [25, 41],
+					iconAnchor: [12, 41],
+					popupAnchor: [1, -34],
+					shadowSize: [41, 41]
+				});
+				
+				// Update icon
+				existingMarker.setIcon(icon);
+				
+				// Update popup content
+				const popupContent = `
+					<div style="min-width: 200px;">
+						<h3 style="margin: 0 0 0.5rem 0;">${location.address}</h3>
+						<p style="margin: 0.25rem 0; font-size: 0.9rem; color: #666;">Device: ${location.name}</p>
+							<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f3f4f6; border-radius: 4px;">
+								<strong>${location.available_spots}/${location.total_spots}</strong> spots available
+								<div style="margin-top: 0.25rem; background: #ddd; height: 6px; border-radius: 3px; overflow: hidden;">
+									<div style="width: ${availability * 100}%; height: 100%; background: ${color};"></div>
+								</div>
+								<div style="margin-top: 0.25rem; font-size: 0.8rem; color: #666;">
+									Status: ${isActive ? 'Active' : 'Inactive'}
+								</div>
 							</div>
-							<div style="margin-top: 0.25rem; font-size: 0.8rem; color: #666;">
-								Status: ${isActive ? 'Active' : 'Inactive'}
-							</div>
-						</div>
-						${isActive ? `
 							<button 
 								onclick="window.selectParkingLocation(${location.id})"
 								style="
@@ -156,25 +168,67 @@
 							>
 								🧭 Navigate Here
 							</button>
-						` : ''}
-					</div>
-				`);
-			
-			// Remove the automatic click handler - only popup should show
-			// marker.on('click', () => {
-			// 	if (isActive) {
-			// 		selectLocation(location);
-			// 	}
-			// });
-			
-			markers.push(marker);
+						</div>
+					`;
+				
+				existingMarker.setPopupContent(popupContent);
+			} else {
+				// Create new marker
+				const icon = L.icon({
+					iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+					shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+					iconSize: [25, 41],
+					iconAnchor: [12, 41],
+					popupAnchor: [1, -34],
+					shadowSize: [41, 41]
+				});
+				
+				const marker = L.marker([location.latitude, location.longitude], { icon })
+					.addTo(map)
+				.bindPopup(`
+					<div style="min-width: 200px;">
+						<h3 style="margin: 0 0 0.5rem 0;">${location.address}</h3>
+						<p style="margin: 0.25rem 0; font-size: 0.9rem; color: #666;">Device: ${location.name}</p>
+							<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f3f4f6; border-radius: 4px;">
+								<strong>${location.available_spots}/${location.total_spots}</strong> spots available
+								<div style="margin-top: 0.25rem; background: #ddd; height: 6px; border-radius: 3px; overflow: hidden;">
+									<div style="width: ${availability * 100}%; height: 100%; background: ${color};"></div>
+								</div>
+								<div style="margin-top: 0.25rem; font-size: 0.8rem; color: #666;">
+									Status: ${isActive ? 'Active' : 'Inactive'}
+								</div>
+							</div>
+							<button 
+								onclick="window.selectParkingLocation(${location.id})"
+								style="
+									width: 100%; 
+									margin-top: 0.5rem; 
+									padding: 0.5rem; 
+									background: #2563eb; 
+									color: white; 
+									border: none; 
+									border-radius: 6px; 
+									cursor: pointer;
+									font-size: 0.9rem;
+									font-weight: 500;
+								"
+								onmouseover="this.style.background='#1d4ed8'"
+								onmouseout="this.style.background='#2563eb'"
+							>
+								🧭 Navigate Here
+							</button>
+						</div>
+					`);
+				
+				markers.set(location.id, marker);
+			}
 		});
 		
 		// Make selectParkingLocation available globally for popup buttons
 		if (typeof window !== 'undefined') {
 			(window as any).selectParkingLocation = (locationId: number) => {
 				const location = locations.find(l => l.id === locationId);
-				if (location && location.available_spots > 0) {
+				if (location) {
 					selectLocation(location);
 				}
 			};
