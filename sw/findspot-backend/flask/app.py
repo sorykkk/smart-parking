@@ -286,7 +286,7 @@ def process_single_sensor_data(device_id, sensor_index, data):
             for dev in parking_data:
                 if dev['id'] == device_id:
                     print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
-        socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+        socketio.emit('parking_update', parking_data, namespace='/')
         
         print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
         
@@ -407,6 +407,36 @@ def health_check():
     })
 
 
+@app.route('/api/debug/devices', methods=['GET'])
+def debug_devices():
+    """Debug endpoint to see all registered devices and their sensors"""
+    devices = Device.query.all()
+    result = []
+    for device in devices:
+        sensors = DistanceSensor.query.filter_by(device_id=device.id).all()
+        result.append({
+            'id': device.id,
+            'name': device.name,
+            'mac_address': device.mac_address,
+            'status': device.status,
+            'mqtt_username': f"esp32_{device.mac_address.replace(':', '').upper()}",
+            'sensors_count': len(sensors),
+            'sensors': [
+                {
+                    'id': s.id,
+                    'index': s.index,
+                    'name': s.name,
+                    'distance': s.current_distance,
+                    'occupied': s.is_occupied
+                } for s in sensors
+            ]
+        })
+    return jsonify({
+        'total_devices': len(devices),
+        'devices': result
+    })
+
+
 # Device Registration Endpoints
 
 @app.route('/api/device/register', methods=['POST'])
@@ -438,12 +468,15 @@ def register_iot_device():
     }
     """
     try:
+        print(f"\n📥 Device registration request received from {request.remote_addr}")
         data = request.get_json()
+        print(f"   Request data: {data}")
         
         # Validate required fields
         required_fields = ['mac_address', 'name', 'location']
         for field in required_fields:
             if not data.get(field):
+                print(f"   ❌ Missing required field: {field}")
                 return jsonify({'error': f'{field} is required'}), 400
         
         mac_address_orig = data.get('mac_address')
