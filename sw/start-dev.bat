@@ -5,6 +5,13 @@ echo FindSpot - Local Development Setup
 echo ========================================
 echo.
 
+REM Check for IP configuration
+if not exist "%~dp0config.env" (
+    echo WARNING: config.env not found. IP configuration may not be set.
+    echo Run set-ip.ps1 to configure IP addresses.
+    echo.
+)
+
 REM Check if mosquitto is in PATH
 where mosquitto >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
