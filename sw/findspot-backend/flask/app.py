@@ -136,6 +136,7 @@ def on_subscribe(client, userdata, mid, granted_qos):
 def on_message(client, userdata, msg):
     """MQTT message callback - processes sensor data and auto-registers sensors"""
     print(f"\n🔔 on_message FIRED! Topic: {msg.topic}")
+    print(f"   Payload (raw bytes): {msg.payload}")
     try:
         topic = msg.topic
         payload = json.loads(msg.payload.decode())
@@ -153,6 +154,7 @@ def on_message(client, userdata, msg):
                 print(f"  ✓ Parsed as: device_id={device_id}, sensor_index={sensor_index}")
                 print(f"  ➡️ Calling process_single_sensor_data...")
                 process_single_sensor_data(device_id, sensor_index, payload)
+                print(f"  ✓ process_single_sensor_data completed")
             else:
                 print(f"  ✗ Wrong number of parts: {len(parts)}")
         # Handle device status updates: device/{device_id}/status
@@ -163,6 +165,10 @@ def on_message(client, userdata, msg):
                 process_device_status(device_id, payload)
         else:
             print(f"  ⚠️ Topic doesn't match expected patterns")
+            print(f"     Topic: '{topic}'")
+            print(f"     Starts with 'device/': {topic.startswith('device/')}")
+            print(f"     Contains '/sensors/': {'/sensors/' in topic}")
+            print(f"     Ends with '/status': {topic.endswith('/status')}")
             
     except json.JSONDecodeError as e:
         print(f"✗ Failed to parse JSON: {e}")
@@ -175,145 +181,153 @@ def on_message(client, userdata, msg):
 
 def process_single_sensor_data(device_id, sensor_index, data):
     """Process individual sensor data update from ESP32"""
-    with app.app_context():
-        try:
-            # Validate device exists
-            device = Device.query.get(device_id)
-            if not device:
-                print(f"❌ Device {device_id} not found for sensor data")
-                return
-            
-            # Update device status and last_seen FIRST, before any validation
-            device.last_seen = datetime.now(timezone.utc)
-            device.status = 'online'
-            print(f"✓ Updated device {device_id} status to 'online', last_seen: {device.last_seen}")
-            
-            sensor_name = data.get('name', f'sensor_{sensor_index}')
-            distance = data.get('current_distance')
-            is_occupied = data.get('is_occupied', False)
-            trigger_pin = data.get('trigger_pin')
-            echo_pin = data.get('echo_pin')
-            
-            if distance is None:
-                print(f"❌ Missing distance in sensor data: {data}")
-                # Still commit device status update even if sensor data is invalid
-                db.session.commit()
-                return
-            
-            print(f"📊 Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
-            
-            # Find or create sensor
-            sensor = DistanceSensor.query.filter_by(
-                device_id=device_id, 
-                index=sensor_index
-            ).first()
-            
-            if not sensor:
-                # Auto-register new sensor
-                sensor = DistanceSensor(
-                    device_id=device_id,
-                    name=sensor_name,
-                    index=sensor_index,
-                    type=data.get('type', 'distance'),
-                    technology=data.get('technology', 'ultrasonic'),
-                    trigger_pin=trigger_pin if trigger_pin is not None else 0,
-                    echo_pin=echo_pin if echo_pin is not None else 0,
-                    current_distance=distance,
-                    is_occupied=is_occupied
-                )
-                db.session.add(sensor)
-                db.session.flush()  # Flush to get sensor ID before commit
-                print(f"✓ Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
-                print(f"  Sensor ID: {sensor.id}, trigger_pin: {trigger_pin}, echo_pin: {echo_pin}")
-                
-                # Notify frontend about new sensor
-                socketio.emit('sensor_registered', {
-                    'device_id': device_id,
-                    'sensor_name': sensor_name,
-                    'sensor_index': sensor_index
-                })
-            else:
-                # Update existing sensor
-                sensor.current_distance = distance
-                sensor.is_occupied = is_occupied
-                sensor.last_updated = datetime.now(timezone.utc)
-                print(f"✓ Updated existing sensor {sensor_index}: distance={distance}cm, occupied={is_occupied}")
-            
-            # Commit all changes to database
+    # Flask-SocketIO with threading mode requires proper app context management
+    # Use push_context instead of with statement for MQTT callbacks
+    ctx = app.app_context()
+    ctx.push()
+    try:
+        # Validate device exists
+        device = Device.query.get(device_id)
+        if not device:
+            print(f"❌ Device {device_id} not found for sensor data")
+            return
+        
+        # Update device status and last_seen FIRST, before any validation
+        device.last_seen = datetime.now(timezone.utc)
+        device.status = 'online'
+        print(f"✓ Updated device {device_id} status to 'online', last_seen: {device.last_seen}")
+        
+        sensor_name = data.get('name', f'sensor_{sensor_index}')
+        distance = data.get('current_distance')
+        is_occupied = data.get('is_occupied', False)
+        trigger_pin = data.get('trigger_pin')
+        echo_pin = data.get('echo_pin')
+        
+        if distance is None:
+            print(f"❌ Missing distance in sensor data: {data}")
+            # Still commit device status update even if sensor data is invalid
             db.session.commit()
-            print(f"✓ Database changes committed for device {device_id}, sensor {sensor_index}")
+            return
+        
+        print(f"📊 Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
+        
+        # Find or create sensor
+        sensor = DistanceSensor.query.filter_by(
+            device_id=device_id, 
+            index=sensor_index
+        ).first()
+        
+        if not sensor:
+            # Auto-register new sensor
+            sensor = DistanceSensor(
+                device_id=device_id,
+                name=sensor_name,
+                index=sensor_index,
+                type=data.get('type', 'distance'),
+                technology=data.get('technology', 'ultrasonic'),
+                trigger_pin=trigger_pin if trigger_pin is not None else 0,
+                echo_pin=echo_pin if echo_pin is not None else 0,
+                current_distance=distance,
+                is_occupied=is_occupied
+            )
+            db.session.add(sensor)
+            db.session.flush()  # Flush to get sensor ID before commit
+            print(f"✓ Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
+            print(f"  Sensor ID: {sensor.id}, trigger_pin: {trigger_pin}, echo_pin: {echo_pin}")
             
-            # Verify sensor was actually saved
-            sensor_check = DistanceSensor.query.filter_by(
-                device_id=device_id, 
-                index=sensor_index
-            ).first()
-            if sensor_check:
-                print(f"✓ Sensor verified in database: {sensor_check.name} (occupied={sensor_check.is_occupied})")
-            else:
-                print(f"⚠ WARNING: Sensor not found in database after commit!")
-            
-            # Real-time update to frontend
-            socketio.emit('sensor_update', {
+            # Notify frontend about new sensor
+            socketio.emit('sensor_registered', {
                 'device_id': device_id,
-                'sensor_index': sensor_index,
                 'sensor_name': sensor_name,
-                'distance': distance,
-                'occupied': is_occupied,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'sensor_index': sensor_index
             })
-            
-            # Notify frontend about device update
-            socketio.emit('device_update', {
-                'device_id': device_id,
-                'status': 'online',
-                'last_seen': device.last_seen.isoformat()
-            })
-            
-            # Send full parking update to ensure frontend has latest data
-            parking_data = get_all_parking_data()
-            print(f"📡 Broadcasting parking update with {len(parking_data)} devices")
-            if len(parking_data) > 0:
-                for dev in parking_data:
-                    if dev['id'] == device_id:
-                        print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
-            socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
-            
-            print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"❌ Error processing sensor data: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            # Update existing sensor
+            sensor.current_distance = distance
+            sensor.is_occupied = is_occupied
+            sensor.last_updated = datetime.now(timezone.utc)
+            print(f"✓ Updated existing sensor {sensor_index}: distance={distance}cm, occupied={is_occupied}")
+        
+        # Commit all changes to database
+        db.session.commit()
+        print(f"✓ Database changes committed for device {device_id}, sensor {sensor_index}")
+        
+        # Verify sensor was actually saved
+        sensor_check = DistanceSensor.query.filter_by(
+            device_id=device_id, 
+            index=sensor_index
+        ).first()
+        if sensor_check:
+            print(f"✓ Sensor verified in database: {sensor_check.name} (occupied={sensor_check.is_occupied})")
+        else:
+            print(f"⚠ WARNING: Sensor not found in database after commit!")
+        
+        # Real-time update to frontend
+        socketio.emit('sensor_update', {
+            'device_id': device_id,
+            'sensor_index': sensor_index,
+            'sensor_name': sensor_name,
+            'distance': distance,
+            'occupied': is_occupied,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Notify frontend about device update
+        socketio.emit('device_update', {
+            'device_id': device_id,
+            'status': 'online',
+            'last_seen': device.last_seen.isoformat()
+        })
+        
+        # Send full parking update to ensure frontend has latest data
+        parking_data = get_all_parking_data()
+        print(f"📡 Broadcasting parking update with {len(parking_data)} devices")
+        if len(parking_data) > 0:
+            for dev in parking_data:
+                if dev['id'] == device_id:
+                    print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
+        socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+        
+        print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error processing sensor data: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        ctx.pop()
 
 
 
 
 def process_device_status(device_id, data):
     """Process device status updates"""
-    with app.app_context():
-        try:
-            status = data.get('status', 'online')
+    ctx = app.app_context()
+    ctx.push()
+    try:
+        status = data.get('status', 'online')
+        
+        device = Device.query.get(device_id)
+        if device:
+            device.status = status
+            device.last_seen = datetime.now(timezone.utc)
+            db.session.commit()
+            print(f"📊 Updated device {device_id} status to {status}")
             
-            device = Device.query.get(device_id)
-            if device:
-                device.status = status
-                device.last_seen = datetime.now(timezone.utc)
-                db.session.commit()
-                print(f"📊 Updated device {device_id} status to {status}")
-                
-                # Notify frontend
-                socketio.emit('device_update', {
-                    'device_id': device_id,
-                    'status': status,
-                    'last_seen': device.last_seen.isoformat()
-                })
-            else:
-                print(f"❌ Device {device_id} not found for status update")
-        except Exception as e:
-            db.session.rollback()
-            print(f"❌ Error updating device status: {e}")
+            # Notify frontend
+            socketio.emit('device_update', {
+                'device_id': device_id,
+                'status': status,
+                'last_seen': device.last_seen.isoformat()
+            })
+        else:
+            print(f"❌ Device {device_id} not found for status update")
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error updating device status: {e}")
+    finally:
+        ctx.pop()
 
 
 def broadcast_parking_update():
