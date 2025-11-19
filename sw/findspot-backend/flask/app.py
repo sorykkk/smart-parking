@@ -634,6 +634,9 @@ def get_parking_status():
         
         for device in devices:
             sensors = DistanceSensor.query.filter_by(device_id=device.id).all()
+            total_spots = len(sensors)
+            available_spots = sum(1 for s in sensors if not s.is_occupied)
+            
             device_data = {
                 'id': device.id,
                 'name': device.name,
@@ -642,18 +645,17 @@ def get_parking_status():
                 'longitude': float(device.longitude) if device.longitude else None,
                 'status': device.status,
                 'last_seen': device.last_seen.isoformat() if device.last_seen else None,
-                'parking_spots': []
+                'total_spots': total_spots,
+                'available_spots': available_spots,
+                'occupancy_rate': round((total_spots - available_spots) / total_spots * 100, 1) if total_spots > 0 else 0,
+                'sensors': [{
+                    'name': s.name,
+                    'index': s.index,
+                    'is_occupied': s.is_occupied,
+                    'current_distance': s.current_distance,
+                    'last_updated': s.last_updated.isoformat() if s.last_updated else None
+                } for s in sensors]
             }
-            
-            for sensor in sensors:
-                spot_data = {
-                    'name': sensor.name,
-                    'index': sensor.index,
-                    'is_occupied': sensor.is_occupied,
-                    'current_distance': sensor.current_distance,
-                    'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
-                }
-                device_data['parking_spots'].append(spot_data)
             
             parking_data.append(device_data)
         
