@@ -460,7 +460,16 @@ def register_iot_device():
             mqtt_username = f"esp32_{mac_address_clean}"
             mqtt_password = f"esp32_pass_{mac_address_clean}"
             
+            # Ensure MQTT credentials exist even for already-registered devices
+            # This is important when moving to a new host computer
+            mqtt_created = create_mqtt_user(mqtt_username, mqtt_password)
+            if mqtt_created:
+                print(f"✓ MQTT credentials verified/created for existing device")
+            else:
+                print(f"⚠ Warning: Could not verify MQTT credentials for {mqtt_username}")
+            
             print(f"✓ Device already registered: {existing_device.id} ({name}) with MAC: {mac_address_orig}")
+            print(f"  Returning MQTT config: broker={MQTT_BROKER_EXTERNAL}:{MQTT_PORT}, user={mqtt_username}")
             
             return jsonify({
                 'device_id': existing_device.id,

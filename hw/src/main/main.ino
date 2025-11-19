@@ -171,6 +171,31 @@ void setup() {
   // Initialize state tracking vector
   sensorStateVector.resize(sensors.size(), false);
   
+  // Publish initial sensor states to register them in the backend
+  Serial.println("\nPublishing initial sensor states...");
+  delay(1000); // Wait for MQTT to stabilize
+  for (size_t i = 0; i < sensors.size(); i++) {
+    if (sensors[i] && mqttClient.isConnected()) {
+      Serial.print("  Sensor ");
+      Serial.print(i);
+      Serial.print(": ");
+      
+      bool initialState = sensors[i]->checkState();
+      sensorStateVector[i] = initialState; // Store initial state
+      
+      String payload = sensors[i]->toJson();
+      if (payload.length() > 0) {
+        if (mqttClient.publishSensorData(i, payload)) {
+          Serial.println(" ✓ Published initial state");
+        } else {
+          Serial.println(" ✗ Failed to publish");
+        }
+        delay(200); // Small delay between sensor publishes
+      }
+    }
+  }
+  Serial.println("Initial sensor states published");
+  
   Serial.println("\n");
   Serial.println("╔═══════════════════════════════════════════════╗");
   Serial.println("║          System Ready - Starting Loop         ║");
