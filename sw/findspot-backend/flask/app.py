@@ -356,6 +356,7 @@ def init_mqtt():
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.loop_start()
         print(f"✓ MQTT loop started")
+        print(f"  on_message handler: {mqtt_client.on_message}")
         
         # Give it a moment to connect
         import time
@@ -367,6 +368,10 @@ def init_mqtt():
             # Test: Subscribe to ALL topics to see if ANY messages come through
             print(f"🧪 Also subscribing to '#' (all topics) for testing...")
             mqtt_client.subscribe("#", qos=0)
+            
+            # Publish a test message to verify the loop is working
+            print(f"🧪 Publishing test message to verify on_message works...")
+            mqtt_client.publish("test/backend", "test_payload")
         else:
             print(f"⚠ MQTT client not connected yet, waiting for callback...")
             
