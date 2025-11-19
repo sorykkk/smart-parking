@@ -53,7 +53,8 @@ MQTT_USER = os.getenv('MQTT_USER', 'flask_backend')
 MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'backend_password')
 
 # MQTT Broker address for external devices (ESP32)
-MQTT_BROKER_EXTERNAL = os.getenv('MQTT_BROKER_EXTERNAL', MQTT_BROKER)
+# For ESP32 to connect, this must be the actual IP, not localhost
+MQTT_BROKER_EXTERNAL = os.getenv('MQTT_BROKER_EXTERNAL', '192.168.1.101')
 
 # ESP32 MQTT Credentials Configuration
 # ESP32 generates and sends its own credentials during registration
@@ -111,44 +112,67 @@ mqtt_client = None
 
 def on_connect(client, userdata, flags, rc):
     """MQTT connection callback"""
+    print(f"\n🔌 MQTT on_connect callback fired with rc={rc}")
     if rc == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
+        print(f"✓ Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
         
         # Subscribe to individual sensor updates: device/{device_id}/sensors/{sensor_index}
-        client.subscribe("device/+/sensors/+")
-        print("Subscribed to topic: device/+/sensors/+")
+        result1, mid1 = client.subscribe("device/+/sensors/+", qos=0)
+        print(f"✓ Subscribed to 'device/+/sensors/+' (result={result1}, mid={mid1})")
         
         # Subscribe to device status updates: device/{device_id}/status
-        client.subscribe("device/+/status")
-        print("Subscribed to topic: device/+/status")
+        result2, mid2 = client.subscribe("device/+/status", qos=0)
+        print(f"✓ Subscribed to 'device/+/status' (result={result2}, mid={mid2})")
         
     else:
-        print(f"Failed to connect to MQTT Broker, return code {rc}")
+        print(f"✗ Failed to connect to MQTT Broker, return code {rc}")
+
+
+def on_subscribe(client, userdata, mid, granted_qos):
+    """Callback when subscription is confirmed"""
+    print(f"✓ Subscription confirmed: mid={mid}, granted_qos={granted_qos}")
 
 
 def on_message(client, userdata, msg):
     """MQTT message callback - processes sensor data and auto-registers sensors"""
+    print(f"\n🔔 on_message FIRED! Topic: {msg.topic}")
+    print(f"   Payload (raw bytes): {msg.payload}")
     try:
         topic = msg.topic
         payload = json.loads(msg.payload.decode())
-        print(f"Received MQTT message on {topic}: {payload}")
+        print(f"📨 Received MQTT message:")
+        print(f"  Topic: {topic}")
+        print(f"  Payload: {json.dumps(payload, indent=2)}")
         
         # Handle individual sensor data: device/{device_id}/sensors/{sensor_index}
         if topic.startswith("device/") and "/sensors/" in topic:
             parts = topic.split('/')
+            print(f"  Topic parts: {parts}")
             if len(parts) == 4:
                 device_id = int(parts[1])
                 sensor_index = int(parts[3])
+                print(f"  ✓ Parsed as: device_id={device_id}, sensor_index={sensor_index}")
+                print(f"  ➡️ Calling process_single_sensor_data...")
                 process_single_sensor_data(device_id, sensor_index, payload)
+                print(f"  ✓ process_single_sensor_data completed")
+            else:
+                print(f"  ✗ Wrong number of parts: {len(parts)}")
         # Handle device status updates: device/{device_id}/status
         elif topic.startswith("device/") and topic.endswith("/status"):
             parts = topic.split('/')
             if len(parts) == 3:
                 device_id = int(parts[1])
                 process_device_status(device_id, payload)
+        else:
+            print(f"  ⚠️ Topic doesn't match expected patterns")
+            print(f"     Topic: '{topic}'")
+            print(f"     Starts with 'device/': {topic.startswith('device/')}")
+            print(f"     Contains '/sensors/': {'/sensors/' in topic}")
+            print(f"     Ends with '/status': {topic.endswith('/status')}")
             
     except json.JSONDecodeError as e:
         print(f"✗ Failed to parse JSON: {e}")
+        print(f"  Raw payload: {msg.payload}")
     except Exception as e:
         print(f"✗ Error processing MQTT message: {e}")
         import traceback
@@ -157,118 +181,153 @@ def on_message(client, userdata, msg):
 
 def process_single_sensor_data(device_id, sensor_index, data):
     """Process individual sensor data update from ESP32"""
-    with app.app_context():
-        try:
-            # Validate device exists
-            device = Device.query.get(device_id)
-            if not device:
-                print(f"Device {device_id} not found for sensor data")
-                return
-            
-            # Update device status
-            device.last_seen = datetime.now(timezone.utc)
-            device.status = 'online'
-            
-            sensor_name = data.get('name', f'sensor_{sensor_index}')
-            distance = data.get('current_distance')
-            is_occupied = data.get('is_occupied', False)
-            trigger_pin = data.get('trigger_pin')
-            echo_pin = data.get('echo_pin')
-            
-            if distance is None:
-                print(f"Missing distance in sensor data: {data}")
-                return
-            
-            print(f"Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
-            
-            # Find or create sensor
-            sensor = DistanceSensor.query.filter_by(
-                device_id=device_id, 
-                index=sensor_index
-            ).first()
-            
-            if not sensor:
-                # Auto-register new sensor
-                sensor = DistanceSensor(
-                    device_id=device_id,
-                    name=sensor_name,
-                    index=sensor_index,
-                    type=data.get('type', 'distance'),
-                    technology=data.get('technology', 'ultrasonic'),
-                    trigger_pin=trigger_pin if trigger_pin is not None else 0,
-                    echo_pin=echo_pin if echo_pin is not None else 0,
-                    current_distance=distance,
-                    is_occupied=is_occupied
-                )
-                db.session.add(sensor)
-                print(f"Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
-                
-                # Notify frontend about new sensor
-                socketio.emit('sensor_registered', {
-                    'device_id': device_id,
-                    'sensor_name': sensor_name,
-                    'sensor_index': sensor_index
-                })
-            else:
-                # Update existing sensor
-                sensor.current_distance = distance
-                sensor.is_occupied = is_occupied
-                sensor.last_updated = datetime.now(timezone.utc)
-            
+    # Flask-SocketIO with threading mode requires proper app context management
+    # Use push_context instead of with statement for MQTT callbacks
+    ctx = app.app_context()
+    ctx.push()
+    try:
+        # Validate device exists
+        device = Device.query.get(device_id)
+        if not device:
+            print(f"❌ Device {device_id} not found for sensor data")
+            return
+        
+        # Update device status and last_seen FIRST, before any validation
+        device.last_seen = datetime.now(timezone.utc)
+        device.status = 'online'
+        print(f"✓ Updated device {device_id} status to 'online', last_seen: {device.last_seen}")
+        
+        sensor_name = data.get('name', f'sensor_{sensor_index}')
+        distance = data.get('current_distance')
+        is_occupied = data.get('is_occupied', False)
+        trigger_pin = data.get('trigger_pin')
+        echo_pin = data.get('echo_pin')
+        
+        if distance is None:
+            print(f"❌ Missing distance in sensor data: {data}")
+            # Still commit device status update even if sensor data is invalid
             db.session.commit()
+            return
+        
+        print(f"📊 Processing sensor {sensor_index} for device {device_id}: {distance}cm, occupied={is_occupied}")
+        
+        # Find or create sensor
+        sensor = DistanceSensor.query.filter_by(
+            device_id=device_id, 
+            index=sensor_index
+        ).first()
+        
+        if not sensor:
+            # Auto-register new sensor
+            sensor = DistanceSensor(
+                device_id=device_id,
+                name=sensor_name,
+                index=sensor_index,
+                type=data.get('type', 'distance'),
+                technology=data.get('technology', 'ultrasonic'),
+                trigger_pin=trigger_pin if trigger_pin is not None else 0,
+                echo_pin=echo_pin if echo_pin is not None else 0,
+                current_distance=distance,
+                is_occupied=is_occupied
+            )
+            db.session.add(sensor)
+            db.session.flush()  # Flush to get sensor ID before commit
+            print(f"✓ Auto-registered new sensor: {sensor_name} (index {sensor_index}) for device {device_id}")
+            print(f"  Sensor ID: {sensor.id}, trigger_pin: {trigger_pin}, echo_pin: {echo_pin}")
             
-            # Real-time update to frontend
-            socketio.emit('sensor_update', {
+            # Notify frontend about new sensor
+            socketio.emit('sensor_registered', {
                 'device_id': device_id,
-                'sensor_index': sensor_index,
                 'sensor_name': sensor_name,
-                'distance': distance,
-                'occupied': is_occupied,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'sensor_index': sensor_index
             })
-            
-            # Notify frontend about device update
-            socketio.emit('device_update', {
-                'device_id': device_id,
-                'status': 'online',
-                'last_seen': device.last_seen.isoformat()
-            })
-            
-            print(f"Successfully processed sensor {sensor_index} data for device {device_id}")
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error processing sensor data: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            # Update existing sensor
+            sensor.current_distance = distance
+            sensor.is_occupied = is_occupied
+            sensor.last_updated = datetime.now(timezone.utc)
+            print(f"✓ Updated existing sensor {sensor_index}: distance={distance}cm, occupied={is_occupied}")
+        
+        # Commit all changes to database
+        db.session.commit()
+        print(f"✓ Database changes committed for device {device_id}, sensor {sensor_index}")
+        
+        # Verify sensor was actually saved
+        sensor_check = DistanceSensor.query.filter_by(
+            device_id=device_id, 
+            index=sensor_index
+        ).first()
+        if sensor_check:
+            print(f"✓ Sensor verified in database: {sensor_check.name} (occupied={sensor_check.is_occupied})")
+        else:
+            print(f"⚠ WARNING: Sensor not found in database after commit!")
+        
+        # Real-time update to frontend
+        socketio.emit('sensor_update', {
+            'device_id': device_id,
+            'sensor_index': sensor_index,
+            'sensor_name': sensor_name,
+            'distance': distance,
+            'occupied': is_occupied,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Notify frontend about device update
+        socketio.emit('device_update', {
+            'device_id': device_id,
+            'status': 'online',
+            'last_seen': device.last_seen.isoformat()
+        })
+        
+        # Send full parking update to ensure frontend has latest data
+        parking_data = get_all_parking_data()
+        print(f"📡 Broadcasting parking update with {len(parking_data)} devices")
+        if len(parking_data) > 0:
+            for dev in parking_data:
+                if dev['id'] == device_id:
+                    print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
+        socketio.emit('parking_update', parking_data, namespace='/')
+        
+        print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error processing sensor data: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        ctx.pop()
 
 
 
 
 def process_device_status(device_id, data):
     """Process device status updates"""
-    with app.app_context():
-        try:
-            status = data.get('status', 'online')
+    ctx = app.app_context()
+    ctx.push()
+    try:
+        status = data.get('status', 'online')
+        
+        device = Device.query.get(device_id)
+        if device:
+            device.status = status
+            device.last_seen = datetime.now(timezone.utc)
+            db.session.commit()
+            print(f"📊 Updated device {device_id} status to {status}")
             
-            device = Device.query.get(device_id)
-            if device:
-                device.status = status
-                device.last_seen = datetime.now(timezone.utc)
-                db.session.commit()
-                print(f"📊 Updated device {device_id} status to {status}")
-                
-                # Notify frontend
-                socketio.emit('device_update', {
-                    'device_id': device_id,
-                    'status': status,
-                    'last_seen': device.last_seen.isoformat()
-                })
-            else:
-                print(f"❌ Device {device_id} not found for status update")
-        except Exception as e:
-            db.session.rollback()
-            print(f"❌ Error updating device status: {e}")
+            # Notify frontend
+            socketio.emit('device_update', {
+                'device_id': device_id,
+                'status': status,
+                'last_seen': device.last_seen.isoformat()
+            })
+        else:
+            print(f"❌ Device {device_id} not found for status update")
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error updating device status: {e}")
+    finally:
+        ctx.pop()
 
 
 def broadcast_parking_update():
@@ -284,17 +343,57 @@ def broadcast_parking_update():
 def init_mqtt():
     """Initialize MQTT client"""
     global mqtt_client
-    mqtt_client = mqtt.Client()
+    print(f"\n🔧 Initializing MQTT client...")
+    print(f"  Broker: {MQTT_BROKER}:{MQTT_PORT}")
+    print(f"  Username: {MQTT_USER}")
+    
+    # Use unique client ID based on process ID to avoid conflicts
+    import os as os_module
+    client_id = f"flask_backend_{os_module.getpid()}"
+    print(f"  Client ID: {client_id}")
+    
+    mqtt_client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311, clean_session=True)
     mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
+    mqtt_client.on_subscribe = on_subscribe
+    
+    # Add disconnect callback for debugging
+    def on_disconnect(client, userdata, rc):
+        if rc != 0:
+            print(f"⚠ Unexpected MQTT disconnect: {rc}")
+        else:
+            print(f"ℹ MQTT client disconnected cleanly")
+    mqtt_client.on_disconnect = on_disconnect
     
     try:
+        print(f"🔌 Connecting to MQTT broker...")
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.loop_start()
-        print("MQTT Client initialized and loop started")
+        print(f"✓ MQTT loop started")
+        print(f"  on_message handler: {mqtt_client.on_message}")
+        
+        # Give it a moment to connect
+        import time
+        time.sleep(1)
+        
+        if mqtt_client.is_connected():
+            print(f"✓ MQTT client confirmed connected")
+            
+            # Test: Subscribe to ALL topics to see if ANY messages come through
+            print(f"🧪 Also subscribing to '#' (all topics) for testing...")
+            mqtt_client.subscribe("#", qos=0)
+            
+            # Publish a test message to verify the loop is working
+            print(f"🧪 Publishing test message to verify on_message works...")
+            mqtt_client.publish("test/backend", "test_payload")
+        else:
+            print(f"⚠ MQTT client not connected yet, waiting for callback...")
+            
     except Exception as e:
-        print(f"Failed to connect to MQTT broker: {e}")
+        print(f"❌ Failed to connect to MQTT broker: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # REST API Endpoints
@@ -305,6 +404,36 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'mqtt_connected': mqtt_client.is_connected() if mqtt_client else False
+    })
+
+
+@app.route('/api/debug/devices', methods=['GET'])
+def debug_devices():
+    """Debug endpoint to see all registered devices and their sensors"""
+    devices = Device.query.all()
+    result = []
+    for device in devices:
+        sensors = DistanceSensor.query.filter_by(device_id=device.id).all()
+        result.append({
+            'id': device.id,
+            'name': device.name,
+            'mac_address': device.mac_address,
+            'status': device.status,
+            'mqtt_username': f"esp32_{device.mac_address.replace(':', '').upper()}",
+            'sensors_count': len(sensors),
+            'sensors': [
+                {
+                    'id': s.id,
+                    'index': s.index,
+                    'name': s.name,
+                    'distance': s.current_distance,
+                    'occupied': s.is_occupied
+                } for s in sensors
+            ]
+        })
+    return jsonify({
+        'total_devices': len(devices),
+        'devices': result
     })
 
 
@@ -339,12 +468,15 @@ def register_iot_device():
     }
     """
     try:
+        print(f"\n📥 Device registration request received from {request.remote_addr}")
         data = request.get_json()
+        print(f"   Request data: {data}")
         
         # Validate required fields
         required_fields = ['mac_address', 'name', 'location']
         for field in required_fields:
             if not data.get(field):
+                print(f"   ❌ Missing required field: {field}")
                 return jsonify({'error': f'{field} is required'}), 400
         
         mac_address_orig = data.get('mac_address')
@@ -361,7 +493,16 @@ def register_iot_device():
             mqtt_username = f"esp32_{mac_address_clean}"
             mqtt_password = f"esp32_pass_{mac_address_clean}"
             
+            # Ensure MQTT credentials exist even for already-registered devices
+            # This is important when moving to a new host computer
+            mqtt_created = create_mqtt_user(mqtt_username, mqtt_password)
+            if mqtt_created:
+                print(f"✓ MQTT credentials verified/created for existing device")
+            else:
+                print(f"⚠ Warning: Could not verify MQTT credentials for {mqtt_username}")
+            
             print(f"✓ Device already registered: {existing_device.id} ({name}) with MAC: {mac_address_orig}")
+            print(f"  Returning MQTT config: broker={MQTT_BROKER_EXTERNAL}:{MQTT_PORT}, user={mqtt_username}")
             
             return jsonify({
                 'device_id': existing_device.id,

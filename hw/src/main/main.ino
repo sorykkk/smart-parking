@@ -81,16 +81,22 @@ void setup() {
     attempts++;
   }
   if (getLocalTime(&timeinfo)) {
-    Serial.println("\nime synchronized!");
+    Serial.println("\nTime synchronized!");
     Serial.print("   Current time: ");
     Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
   } else {
     Serial.println("\nTime sync failed, continuing anyway...");
   }
   
+  // Reset watchdog before HTTP request
+  esp_task_wdt_reset();
+  
   // Step 3: Register device via HTTP and get MQTT credentials
   Serial.println("\nRegistering device with backend...");
   RegistrationResponse regResponse = httpClient.registerDevice(esp32device);
+  
+  // Reset watchdog after HTTP request
+  esp_task_wdt_reset();
   
   if (!regResponse.success) {
     Serial.println("Device registration failed: " + regResponse.error_message);
@@ -152,9 +158,9 @@ void setup() {
   
   // Setup ultrasonic sensors (each represents a parking spot)
   // Format: DistanceSensor(device, technology, index, trigger_pin, echo_pin)
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 13, 12));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
-  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 22, 23));
+  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
+  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
 
   for (auto& sensor : sensors) {
     sensor->begin();
@@ -164,6 +170,31 @@ void setup() {
   
   // Initialize state tracking vector
   sensorStateVector.resize(sensors.size(), false);
+  
+  // Publish initial sensor states to register them in the backend
+  Serial.println("\nPublishing initial sensor states...");
+  delay(1000); // Wait for MQTT to stabilize
+  for (size_t i = 0; i < sensors.size(); i++) {
+    if (sensors[i] && mqttClient.isConnected()) {
+      Serial.print("  Sensor ");
+      Serial.print(i);
+      Serial.print(": ");
+      
+      bool initialState = sensors[i]->checkState();
+      sensorStateVector[i] = initialState; // Store initial state
+      
+      String payload = sensors[i]->toJson();
+      if (payload.length() > 0) {
+        if (mqttClient.publishSensorData(i, payload)) {
+          Serial.println(" ✓ Published initial state");
+        } else {
+          Serial.println(" ✗ Failed to publish");
+        }
+        delay(200); // Small delay between sensor publishes
+      }
+    }
+  }
+  Serial.println("Initial sensor states published");
   
   Serial.println("\n");
   Serial.println("╔═══════════════════════════════════════════════╗");
@@ -223,18 +254,19 @@ void loop() {
       delay(50);
       yield();
       
+      Serial.print("  Sensor ");
+      Serial.print(i);
+      Serial.print(": ");
+      
       bool currentState = false;
       // Wrap sensor reading in try-catch equivalent (check for crashes)
       currentState = sensors[i]->checkState();
       
+      Serial.print(currentState ? "occupied" : "free");
+      
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
-        Serial.print("Sensor ");
-        Serial.print(i);
-        Serial.print(" state changed: ");
-        Serial.print(sensorStateVector[i] ? "occupied" : "free");
-        Serial.print(" -> ");
-        Serial.println(currentState ? "occupied" : "free");
+        Serial.print("    State changed! Publishing...");
         
         yield();
         
@@ -245,22 +277,18 @@ void loop() {
         }
         
         if (payload.length() > 0 && mqttClient.isConnected()) {
-          Serial.print("Publishing sensor ");
-          Serial.println(i);
-          
           // Add delay to prevent overwhelming MQTT
           delay(100);
           yield();
           
           if (mqttClient.publishSensorData(i, payload)) {
             sensorStateVector[i] = currentState;
-            Serial.print("Sensor ");
-            Serial.print(i);
-            Serial.println(" published");
+            Serial.println(" ✓ Published");
           } else {
-            Serial.print("Failed to publish sensor ");
-            Serial.println(i);
+            Serial.println(" ✗ Failed");
           }
+        } else {
+          Serial.println(" ✗ No payload or disconnected");
         }
         
         // Force free the payload string

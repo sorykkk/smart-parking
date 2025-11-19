@@ -22,48 +22,51 @@
 	let watchId: number | null = null;
 	let userDraggedMap = false;
 	
-	onMount(async () => {
+	onMount(() => {
 		if (!browser) return;
 		
-		// Dynamically import Leaflet only on the client side
-		const leafletModule = await import('leaflet');
-		L = leafletModule.default;
-		
-		// Import CSS dynamically
-		await import('leaflet/dist/leaflet.css');
-		
-		// Initialize map
-		const defaultCenter: [number, number] = userLocation 
-			? [userLocation.lat, userLocation.lon]
-			: [46.7712, 23.6236]; // Cluj-Napoca default
+		// Async initialization
+		(async () => {
+			// Dynamically import Leaflet only on the client side
+			const leafletModule = await import('leaflet');
+			L = leafletModule.default;
 			
-		map = L.map(mapContainer).setView(defaultCenter, 16);
-		
-		// Add OpenStreetMap tiles
-		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			attribution: '© OpenStreetMap contributors',
-			maxZoom: 19
-		}).addTo(map);
-		
-		// Add user location as a circle if available
-		if (userLocation) {
-			updateUserLocation();
-			lastUserCenterZoom = 16;
-		}
-		
-		// Add map event listeners to track when user moves away from their location
-		map.on('moveend', checkIfNeedRecenter);
-		map.on('zoomend', checkIfNeedRecenter);
-		
-		// Add drag event listeners to detect when user manually moves the map
-		map.on('dragstart', () => {
-			if (autoFollowUser) {
-				userDraggedMap = true;
-				console.log('🖱️ User dragged map - pausing auto-follow');
+			// Import CSS dynamically
+			await import('leaflet/dist/leaflet.css');
+			
+			// Initialize map
+			const defaultCenter: [number, number] = userLocation 
+				? [userLocation.lat, userLocation.lon]
+				: [45.7489, 21.2087]; // Timisoara default
+			
+			map = L.map(mapContainer).setView(defaultCenter, 16);
+			
+			// Add OpenStreetMap tiles
+			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				attribution: '© OpenStreetMap contributors',
+				maxZoom: 19
+			}).addTo(map);
+			
+			// Add user location as a circle if available
+			if (userLocation) {
+				updateUserLocation();
+				lastUserCenterZoom = 16;
 			}
-		});
-		
-		updateMarkers();
+			
+			// Add map event listeners to track when user moves away from their location
+			map.on('moveend', checkIfNeedRecenter);
+			map.on('zoomend', checkIfNeedRecenter);
+			
+			// Add drag event listeners to detect when user manually moves the map
+			map.on('dragstart', () => {
+				if (autoFollowUser) {
+					userDraggedMap = true;
+					console.log('🖱️ User dragged map - pausing auto-follow');
+				}
+			});
+			
+			updateMarkers();
+		})();
 		
 		return () => {
 			if (map) {
@@ -101,10 +104,11 @@
 		locations.forEach(location => {
 			// Determine marker color based on availability
 			const availability = location.total_spots > 0 ? location.available_spots / location.total_spots : 0;
-			const isActive = location.status === 'online';
+			// Consider device active if it's online OR if it has sensors (registered with data)
+			const isActive = location.status === 'online' || (location.status === 'registered' && location.total_spots > 0);
 			
 			let color = 'grey'; // Default for inactive/no spots
-			if (isActive) {
+			if (isActive && location.total_spots > 0) {
 				color = availability > 0.5 ? 'green' : availability > 0.2 ? 'orange' : 'red';
 			}
 			

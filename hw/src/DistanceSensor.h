@@ -42,30 +42,16 @@ public:
   /// @brief Calculate the `lastDistance`, and set `occupied` if the parking spot is to consider taken 
   /// @return True if parking spot is occupied (car detected), false otherwise
   bool checkState() override {
-    bool previousState = occupied;
-    
-    // Safely get distance with error handling
-    long distance = getDistance();
-    if (distance == INVALID_DISTANCE) {
-      // Keep previous state on invalid reading
-      return occupied;
-    }
-    
-    lastDistance = distance;
-    // Occupied when distance is valid AND within the threshold (car is close enough)
-    occupied = (lastDistance <= DISTANCE_MAX_CM);
 
-    // Log state change
-    if (occupied != previousState) {
-      Serial.print("Sensor ");
-      Serial.print(index);
-      Serial.print(": ");
-      Serial.print(previousState ? "occupied" : "free");
-      Serial.print(" -> ");
-      Serial.print(occupied ? "occupied" : "free");
-      Serial.print(" (");
-      Serial.print(lastDistance);
-      Serial.println("cm)");
+    lastDistance = getDistance();
+    Serial.print(lastDistance);
+    Serial.println(" cm");
+
+    // Occupied when distance is valid AND within the threshold (car is close enough)
+    if(lastDistance <= DISTANCE_MAX_CM && lastDistance >= DISTANCE_MIN_CM)
+      occupied = true;
+    else {
+      occupied = false;
     }
 
     // Update timestamp - simplified to avoid strftime issues
@@ -75,14 +61,17 @@ public:
   }
 
   long getDistance() {
+    // Disable interrupts temporarily to get a clean reading
+    noInterrupts();
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
+    interrupts();
     
-    // Use shorter timeout (25ms) to prevent blocking too long
-    long duration = pulseIn(echoPin, HIGH, 25000);
+    // Use shorter timeout (30ms) to prevent blocking too long
+    long duration = pulseIn(echoPin, HIGH, 30000);
     
     // If pulseIn times out, it returns 0
     if (duration == 0) {
@@ -113,8 +102,8 @@ public:
   }
 
   String toJson() const override {
-    // Use static JSON document to avoid heap allocation issues
-    StaticJsonDocument<384> doc;
+    // Use smaller static JSON document to reduce memory usage
+    StaticJsonDocument<256> doc;
     
     doc["name"] = name;
     doc["index"] = index;
@@ -127,8 +116,14 @@ public:
     doc["last_updated"] = isoTime;
 
     String payload;
-    payload.reserve(256); // Pre-allocate to avoid fragmentation
-    serializeJson(doc, payload);
+    payload.reserve(200); // Pre-allocate to avoid fragmentation
+    size_t len = serializeJson(doc, payload);
+    
+    if (len == 0) {
+      Serial.println("JSON serialization failed!");
+      return "";
+    }
+    
     return payload;
   }
 

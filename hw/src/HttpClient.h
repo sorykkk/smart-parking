@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "esp_task_wdt.h"
 #include "Device.h"
 #include "Config.h"
 
@@ -58,12 +59,31 @@ public:
     Serial.println("Sending to: " + url);
     Serial.println("Payload: " + json);
     
-    // Send HTTP POST request
+    // Send HTTP POST request with timeout
     http.begin(url);
+    http.setTimeout(10000); // 10 second timeout
     http.addHeader("Content-Type", "application/json");
+    
+    Serial.println("Sending POST request...");
     int httpCode = http.POST(json);
+    
+    // Reset watchdog after HTTP request
+    esp_task_wdt_reset();
+    
+    if (httpCode <= 0) {
+      // HTTP request failed
+      response.error_message = "HTTP request failed: " + http.errorToString(httpCode);
+      Serial.println(response.error_message);
+      http.end();
+      return response;
+    }
+    
+    Serial.println("Getting response...");
     String responseBody = http.getString();
     http.end();
+    
+    // Reset watchdog again after getting response
+    esp_task_wdt_reset();
     
     Serial.println("HTTP Response Code: " + String(httpCode));
     Serial.println("Response: " + responseBody);
