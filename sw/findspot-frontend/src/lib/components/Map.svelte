@@ -149,27 +149,25 @@
 									Status: ${isActive ? 'Active' : 'Inactive'}
 								</div>
 							</div>
-							${isActive ? `
-								<button 
-									onclick="window.selectParkingLocation(${location.id})"
-									style="
-										width: 100%; 
-										margin-top: 0.5rem; 
-										padding: 0.5rem; 
-										background: #2563eb; 
-										color: white; 
-										border: none; 
-										border-radius: 6px; 
-										cursor: pointer;
-										font-size: 0.9rem;
-										font-weight: 500;
-									"
-									onmouseover="this.style.background='#1d4ed8'"
-									onmouseout="this.style.background='#2563eb'"
-								>
-									🧭 Navigate Here
-								</button>
-							` : ''}
+							<button 
+								onclick="window.selectParkingLocation(${location.id})"
+								style="
+									width: 100%; 
+									margin-top: 0.5rem; 
+									padding: 0.5rem; 
+									background: #2563eb; 
+									color: white; 
+									border: none; 
+									border-radius: 6px; 
+									cursor: pointer;
+									font-size: 0.9rem;
+									font-weight: 500;
+								"
+								onmouseover="this.style.background='#1d4ed8'"
+								onmouseout="this.style.background='#2563eb'"
+							>
+								🧭 Navigate Here
+							</button>
 						</div>
 					`;
 				
@@ -200,27 +198,25 @@
 									Status: ${isActive ? 'Active' : 'Inactive'}
 								</div>
 							</div>
-							${isActive ? `
-								<button 
-									onclick="window.selectParkingLocation(${location.id})"
-									style="
-										width: 100%; 
-										margin-top: 0.5rem; 
-										padding: 0.5rem; 
-										background: #2563eb; 
-										color: white; 
-										border: none; 
-										border-radius: 6px; 
-										cursor: pointer;
-										font-size: 0.9rem;
-										font-weight: 500;
-									"
-									onmouseover="this.style.background='#1d4ed8'"
-									onmouseout="this.style.background='#2563eb'"
-								>
-									🧭 Navigate Here
-								</button>
-							` : ''}
+							<button 
+								onclick="window.selectParkingLocation(${location.id})"
+								style="
+									width: 100%; 
+									margin-top: 0.5rem; 
+									padding: 0.5rem; 
+									background: #2563eb; 
+									color: white; 
+									border: none; 
+									border-radius: 6px; 
+									cursor: pointer;
+									font-size: 0.9rem;
+									font-weight: 500;
+								"
+								onmouseover="this.style.background='#1d4ed8'"
+								onmouseout="this.style.background='#2563eb'"
+							>
+								🧭 Navigate Here
+							</button>
 						</div>
 					`);
 				
@@ -232,7 +228,7 @@
 		if (typeof window !== 'undefined') {
 			(window as any).selectParkingLocation = (locationId: number) => {
 				const location = locations.find(l => l.id === locationId);
-				if (location && location.available_spots > 0) {
+				if (location) {
 					selectLocation(location);
 				}
 			};
