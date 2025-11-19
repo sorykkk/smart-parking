@@ -346,7 +346,7 @@ def broadcast_parking_update():
     """Broadcast parking updates to all connected WebSocket clients"""
     try:
         parking_data = get_all_parking_data()
-        socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+        socketio.emit('parking_update', parking_data)
         print(f"Broadcasted parking update to WebSocket clients")
     except Exception as e:
         print(f"Error broadcasting update: {e}")
@@ -822,7 +822,7 @@ def check_device_timeouts():
                     db.session.commit()
                     # Broadcast updated parking data to all clients
                     parking_data = get_all_parking_data()
-                    socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
+                    socketio.emit('parking_update', parking_data)
                     print(f"📡 Broadcast parking update: {len(devices_went_offline)} device(s) went offline")
                     
         except Exception as e:
