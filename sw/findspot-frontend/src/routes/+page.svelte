@@ -61,9 +61,9 @@
 				console.warn('Location request timeout');
 			}
 			
-			// Default to Cluj-Napoca if location not available
-			userLocation = { lat: 46.7712, lon: 23.6236 };
-			console.log('Using default location (Cluj-Napoca):', userLocation);
+			// Default to Timisoara if location not available
+			userLocation = { lat: 45.7489, lon: 21.2087 };
+			console.log('Using default location (Timisoara):', userLocation);
 		}
 	}
 	

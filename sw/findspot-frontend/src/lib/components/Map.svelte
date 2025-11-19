@@ -33,11 +33,9 @@
 		await import('leaflet/dist/leaflet.css');
 		
 		// Initialize map
-		const defaultCenter: [number, number] = userLocation 
-			? [userLocation.lat, userLocation.lon]
-			: [46.7712, 23.6236]; // Cluj-Napoca default
-			
-		map = L.map(mapContainer).setView(defaultCenter, 16);
+	const defaultCenter: [number, number] = userLocation 
+		? [userLocation.lat, userLocation.lon]
+		: [45.7489, 21.2087]; // Timisoara default		map = L.map(mapContainer).setView(defaultCenter, 16);
 		
 		// Add OpenStreetMap tiles
 		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
