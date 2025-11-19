@@ -63,7 +63,12 @@ def is_device_online(device):
     if not device.last_seen:
         return False
     
-    time_since_last_seen = (datetime.now(timezone.utc) - device.last_seen).total_seconds()
+    # Ensure last_seen is timezone-aware
+    last_seen = device.last_seen
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=timezone.utc)
+    
+    time_since_last_seen = (datetime.now(timezone.utc) - last_seen).total_seconds()
     return time_since_last_seen <= DEVICE_TIMEOUT
 
 def create_mqtt_user(username, password):
