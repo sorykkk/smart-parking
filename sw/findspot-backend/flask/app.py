@@ -332,7 +332,12 @@ def init_mqtt():
     print(f"  Broker: {MQTT_BROKER}:{MQTT_PORT}")
     print(f"  Username: {MQTT_USER}")
     
-    mqtt_client = mqtt.Client(client_id="flask_backend_subscriber", protocol=mqtt.MQTTv311)
+    # Use unique client ID based on process ID to avoid conflicts
+    import os as os_module
+    client_id = f"flask_backend_{os_module.getpid()}"
+    print(f"  Client ID: {client_id}")
+    
+    mqtt_client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311, clean_session=True)
     mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
@@ -358,6 +363,10 @@ def init_mqtt():
         
         if mqtt_client.is_connected():
             print(f"✓ MQTT client confirmed connected")
+            
+            # Test: Subscribe to ALL topics to see if ANY messages come through
+            print(f"🧪 Also subscribing to '#' (all topics) for testing...")
+            mqtt_client.subscribe("#", qos=0)
         else:
             print(f"⚠ MQTT client not connected yet, waiting for callback...")
             
