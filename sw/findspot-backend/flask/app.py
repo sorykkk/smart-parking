@@ -298,7 +298,7 @@ def process_single_sensor_data(device_id, sensor_index, data):
             for dev in parking_data:
                 if dev['id'] == device_id:
                     print(f"  Device {device_id}: {dev['total_spots']} total spots, {dev['available_spots']} available, status={dev['status']}")
-        socketio.emit('parking_update', parking_data, namespace='/')
+        socketio.emit('parking_update', parking_data, namespace='/', broadcast=True)
         
         print(f"✓ Successfully processed sensor {sensor_index} data for device {device_id}")
         
