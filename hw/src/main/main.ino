@@ -54,7 +54,6 @@ void setup() {
   Serial.println("╚═══════════════════════════════════════════════╝");
   
   // Configure watchdog timer
-  Serial.println("\nConfiguring watchdog timer...");
   esp_task_wdt_config_t wdt_config = {
     .timeout_ms = WDT_TIMEOUT * 1000,
     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
@@ -69,21 +68,15 @@ void setup() {
   Serial.println("WiFi Connected");
   
   // Step 2: Synchronize time with NTP server
-  Serial.println("\nSynchronizing time with NTP server...");
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
   int attempts = 0;
   while (!getLocalTime(&timeinfo) && attempts < 20) {
     delay(500);
-    Serial.print(".");
     attempts++;
   }
   if (getLocalTime(&timeinfo)) {
-    Serial.println("\nTime synchronized!");
-    Serial.print("   Current time: ");
-    Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
-  } else {
-    Serial.println("\nTime sync failed, continuing anyway...");
+    Serial.println("Time synchronized");
   }
   
   // Reset watchdog before HTTP request
@@ -106,10 +99,9 @@ void setup() {
   
   // Set device ID
   esp32device.setId(regResponse.device_id);
-  Serial.println("Device registered successfully!");
-  Serial.println("   Device ID: " + String(regResponse.device_id));
+  Serial.println("Device registered - ID: " + String(regResponse.device_id));
   
-  // Step 4: Connect to MQTT broker using credentials from backend
+  // Step 4: Connect to MQTT broker
   Serial.println("\nConnecting to MQTT broker...");
   mqttClient.setCredentials(
     regResponse.mqtt_username,
@@ -168,30 +160,20 @@ void setup() {
   // Initialize state tracking vector
   sensorStateVector.resize(sensors.size(), false);
   
-  // Publish initial sensor states to register them in the backend
-  Serial.println("\nPublishing initial sensor states...");
-  delay(1000); // Wait for MQTT to stabilize
+  // Publish initial sensor states
+  delay(1000);
   for (size_t i = 0; i < sensors.size(); i++) {
     if (sensors[i] && mqttClient.isConnected()) {
-      Serial.print("  Sensor ");
-      Serial.print(i);
-      Serial.print(": ");
-      
       bool initialState = sensors[i]->checkState();
-      sensorStateVector[i] = initialState; // Store initial state
+      sensorStateVector[i] = initialState;
       
       String payload = sensors[i]->toJson();
       if (payload.length() > 0) {
-        if (mqttClient.publishSensorData(i, payload)) {
-          Serial.println("Published initial state");
-        } else {
-          Serial.println("Failed to publish");
-        }
-        delay(200); // Small delay between sensor publishes
+        mqttClient.publishSensorData(i, payload);
+        delay(200);
       }
     }
   }
-  Serial.println("Initial sensor states published");
   
   Serial.println("\n");
   Serial.println("╔═══════════════════════════════════════════════╗");
@@ -246,19 +228,10 @@ void loop() {
         continue;
       }
       
-      // Add delay between sensors to prevent issues
       delay(50);
       yield();
       
-      Serial.print("  Sensor ");
-      Serial.print(i);
-      Serial.print(": ");
-      
-      bool currentState = false;
-      // Wrap sensor reading in try-catch equivalent (check for crashes)
-      currentState = sensors[i]->checkState();
-      
-      Serial.print(currentState ? "occupied" : "free");
+      bool currentState = sensors[i]->checkState();
       
       // Only publish if state changed
       if (currentState != sensorStateVector[i]) {
@@ -266,14 +239,12 @@ void loop() {
         
         yield();
         
-        // Create payload inside a scope to free memory immediately after use
         String payload = "";
         if (sensors[i]) {
           payload = sensors[i]->toJson();
         }
         
         if (payload.length() > 0 && mqttClient.isConnected()) {
-          // Add delay to prevent overwhelming MQTT
           delay(100);
           yield();
           

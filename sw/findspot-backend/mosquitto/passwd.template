@@ -1,25 +1,34 @@
-# Mosquitto Password File Setup Script
+# Mosquitto Password File Template
 # 
-# This file will be generated using mosquitto_passwd utility
-# Run the following commands on Raspberry Pi:
+# This file provides instructions for creating MQTT user credentials
+# using the mosquitto_passwd utility.
 #
-# 1. Create password file for Flask backend (required for ESP32 registration):
+# SETUP INSTRUCTIONS:
+#
+# 1. Create password for Flask backend (required):
 #    mosquitto_passwd -c passwd flask_backend
-#    Enter password: backend_password
+#    Enter password when prompted (use same password as in .env file)
 #
-# 2. ESP32 devices will automatically register their own credentials
-#    No manual setup required for ESP32 MQTT users
+# 2. ESP32 devices auto-register:
+#    - Devices automatically create their own MQTT credentials during registration
+#    - No manual setup required for ESP32 users
+#    - Format: esp32_<MAC_ADDRESS> / esp32_pass_<MAC_ADDRESS>
 #
 # 3. (Optional) Add password for web/mobile clients:
 #    mosquitto_passwd passwd web_client
-#    Enter password: client_password
+#    Enter password when prompted
 #
-# The file format will be:
-# username:hashed_password
+# FILE FORMAT (after running mosquitto_passwd):
+# username:$7$101$<hashed_password>
 #
-# Example (after running mosquitto_passwd):
-# esp32_device:$7$101$...hashed...
-# flask_backend:$7$101$...hashed...
-
-# For testing only - DELETE THIS IN PRODUCTION
-# Use mosquitto_passwd to create proper hashed passwords
+# SECURITY NOTES:
+# - Never commit the actual passwd file to version control
+# - Use strong passwords (minimum 12 characters)
+# - Only passwd.template should be committed
+# - The actual passwd file is in .gitignore
+#
+# For local development, create passwd file with:
+# cd sw/findspot-backend/mosquitto
+# mosquitto_passwd -c passwd flask_backend
+#
+# Then update .env with matching MQTT_PASSWORD value

@@ -73,7 +73,9 @@ python app.py
 
 ```powershell
 # In backend terminal (or new one with venv activated)
-python add_dummy_data.py
+cd sw\findspot-backend\flask
+.\venv\Scripts\activate
+python data\add_dummy_data.py
 ```
 
 ### 5. Setup and Run Frontend

@@ -36,15 +36,15 @@ def add_dummy_data():
         Device.query.delete()
         db.session.commit()
         
-        # Cluj-Napoca coordinates for reference: 46.7712, 23.6236
+        # Timisoara coordinates for reference: 45.7489, 21.2087
         
         # Create dummy devices (parking locations)
         devices_data = [
             {
                 'name': 'Central Park Parking',
-                'location': 'Piața Unirii 1, Cluj-Napoca',
-                'latitude': 46.7712,
-                'longitude': 23.6236,
+                'location': 'Piața Victoriei 1, Timisoara',
+                'latitude': 45.7537,
+                'longitude': 21.2257,
                 'mac_address': '00:11:22:33:44:55',
                 'status': 'online',
                 'spots': [
@@ -56,9 +56,9 @@ def add_dummy_data():
             },
             {
                 'name': 'University Area Parking',
-                'location': 'Str. Mihail Kogălniceanu 1, Cluj-Napoca',
-                'latitude': 46.7693,
-                'longitude': 23.5893,
+                'location': 'Bulevardul Vasile Pârvan 4, Timisoara',
+                'latitude': 45.7470,
+                'longitude': 21.2272,
                 'mac_address': '00:11:22:33:44:56',
                 'status': 'online',
                 'spots': [
@@ -69,9 +69,9 @@ def add_dummy_data():
             },
             {
                 'name': 'Mall Parking',
-                'location': 'Strada Fabricii 1, Cluj-Napoca',
-                'latitude': 46.7733,
-                'longitude': 23.6203,
+                'location': 'Calea Dorobanților 3, Timisoara',
+                'latitude': 45.7567,
+                'longitude': 21.2304,
                 'mac_address': '00:11:22:33:44:57',
                 'status': 'online',
                 'spots': [
@@ -85,9 +85,9 @@ def add_dummy_data():
             },
             {
                 'name': 'Train Station Parking',
-                'location': 'Piața Gării 1, Cluj-Napoca',
-                'latitude': 46.7584,
-                'longitude': 23.5960,
+                'location': 'Piața Gării de Nord 1, Timisoara',
+                'latitude': 45.7465,
+                'longitude': 21.2088,
                 'mac_address': '00:11:22:33:44:58',
                 'status': 'online',
                 'spots': [
@@ -99,9 +99,9 @@ def add_dummy_data():
             },
             {
                 'name': 'Business District Parking',
-                'location': 'Strada Dorobantilor 50, Cluj-Napoca',
-                'latitude': 46.7799,
-                'longitude': 23.6126,
+                'location': 'Bulevardul Liviu Rebreanu 4, Timisoara',
+                'latitude': 45.7423,
+                'longitude': 21.2163,
                 'mac_address': '00:11:22:33:44:59',
                 'status': 'offline',  # Offline device for testing
                 'spots': [
@@ -111,9 +111,9 @@ def add_dummy_data():
             },
             {
                 'name': 'Hospital Parking',
-                'location': 'Strada Clinicilor 3-5, Cluj-Napoca',
-                'latitude': 46.7587,
-                'longitude': 23.6410,
+                'location': 'Bulevardul Liviu Rebreanu 156, Timisoara',
+                'latitude': 45.7531,
+                'longitude': 21.2401,
                 'mac_address': '00:11:22:33:44:60',
                 'status': 'online',
                 'spots': [
@@ -177,7 +177,7 @@ def add_dummy_data():
         print(f"   Available Spots: {available_spots}")
         print(f"   Occupied Spots: {occupied_spots}")
         
-        print(f"\nTest Locations in Cluj-Napoca:")
+        print(f"\nTest Locations in Timisoara:")
         for device in Device.query.all():
             available = DistanceSensor.query.filter_by(device_id=device.id, is_occupied=False).count()
             total = DistanceSensor.query.filter_by(device_id=device.id).count()
