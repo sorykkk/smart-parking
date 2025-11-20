@@ -3,5 +3,5 @@
 #define WIFI_PASS ""
 
 // Backend server configuration
-#define BACKEND_HOST "192.168.1.101"  // Your backend server IP
-#define BACKEND_PORT 5000              // Backend server port
+#define BACKEND_HOST ""  // Your backend server IP
+#define BACKEND_PORT ""  // Backend server port

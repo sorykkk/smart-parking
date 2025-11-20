@@ -159,8 +159,8 @@ void setup() {
   // Setup ultrasonic sensors (each represents a parking spot)
   // Format: DistanceSensor(device, technology, index, trigger_pin, echo_pin)
   sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 22, 23));
-  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 15));
-  // sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 16, 0));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 12));
+  sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 33, 32));
 
   for (auto& sensor : sensors) {
     sensor->begin();
