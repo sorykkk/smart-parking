@@ -81,11 +81,3 @@ echo.
 echo ========================================
 echo All services started!
 echo ========================================
-echo.
-echo Frontend: http://localhost:5173
-echo Backend:  http://localhost:5000
-echo MQTT:     localhost:1883
-echo.
-echo Press any key to open frontend in browser...
-pause >nul
-start http://localhost:5173

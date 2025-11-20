@@ -119,23 +119,34 @@ if (Test-Path $backendEnv) {
     Write-Warn "Backend .env not found - skipping MQTT_BROKER update"
 }
 
-# 3. Update hardware env.h (BACKEND_HOST)
+# 3. Update hardware env.h (BACKEND_HOST, WIFI_SSID, WIFI_PASS)
 $hwEnvH = Join-Path (Split-Path -Parent $scriptDir) "hw\src\env.h"
 if (Test-Path $hwEnvH) {
-    # Use special handling for C header file with quotes
     $content = Get-Content $hwEnvH -Raw
-    $pattern = '#define BACKEND_HOST "[0-9.]+"'
-    $replacement = "#define BACKEND_HOST ""$IP"""
-    $newContent = $content -replace $pattern, $replacement
+    $newContent = $content
     
+    # Update BACKEND_HOST
+    $newContent = $newContent -replace '#define BACKEND_HOST\s+"[0-9.]+"', "#define BACKEND_HOST             ""$IP"""
+    Write-Success "Updated Hardware env.h (BACKEND_HOST)"
+    
+    # Update WIFI_SSID if provided
+    if ($WiFiSSID) {
+        $newContent = $newContent -replace '#define WIFI_SSID\s+"[^"]+"', "#define WIFI_SSID ""$WiFiSSID"""
+        Write-Success "Updated Hardware env.h (WIFI_SSID)"
+    }
+    
+    # Update WIFI_PASS if provided
+    if ($WiFiPass) {
+        $newContent = $newContent -replace '#define WIFI_PASS\s+"[^"]+"', "#define WIFI_PASS ""$WiFiPass"""
+        Write-Success "Updated Hardware env.h (WIFI_PASS)"
+    }
+    
+    # Write back only if something changed
     if ($content -ne $newContent) {
         $newContent | Set-Content $hwEnvH -NoNewline
-        Write-Success "Updated Hardware env.h (BACKEND_HOST)"
-    } else {
-        Write-Info "  No change needed in Hardware env.h (BACKEND_HOST)"
     }
 } else {
-    Write-Warn "Hardware env.h not found - skipping BACKEND_HOST update"
+    Write-Warn "Hardware env.h not found - skipping updates"
 }
 
 Write-Info ""
