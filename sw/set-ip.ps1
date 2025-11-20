@@ -46,7 +46,7 @@ function Set-ConfiguredIP {
     $content = Get-Content $configFile -Raw
     $content = $content -replace 'IP_ADDRESS=.+', "IP_ADDRESS=$IP"
     $content | Set-Content $configFile -NoNewline
-    Write-Success "✓ Updated config.env with IP: $IP"
+    Write-Success "Updated config.env with IP: $IP"
 }
 
 # Function to update a file with new IP
@@ -68,7 +68,7 @@ function Update-FileIP {
     
     if ($content -ne $newContent) {
         $newContent | Set-Content $FilePath -NoNewline
-        Write-Success "✓ Updated $Description"
+        Write-Success "Updated $Description"
     } else {
         Write-Info "  No change needed in $Description"
     }
