@@ -5,6 +5,16 @@ echo FindSpot - Local Development Setup
 echo ========================================
 echo.
 
+REM Auto-configure IP addresses
+echo Configuring IP addresses...
+powershell -ExecutionPolicy Bypass -File "%~dp0set-ip.ps1"
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: IP configuration failed.
+    pause
+    exit /b 1
+)
+echo.
+
 REM Check if mosquitto is in PATH
 where mosquitto >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
@@ -15,7 +25,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM Check if Python is available
-where python >nul 2>&1
+where py>nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Python not found. Please install Python 3.8+
     pause
@@ -40,14 +50,14 @@ echo [2/3] Starting Backend...
 cd findspot-backend\flask
 if not exist venv (
     echo Creating Python virtual environment...
-    python -m venv venv
+    py -m venv venv
     call venv\Scripts\activate
     echo Installing dependencies...
     pip install -r requirements.txt
 ) else (
     call venv\Scripts\activate
 )
-start "Backend - Flask" cmd /k "venv\Scripts\activate && python app.py"
+start "Backend - Flask" cmd /k "venv\Scripts\activate && py app.py"
 cd ..\..
 timeout /t 3 >nul
 
@@ -64,11 +74,3 @@ echo.
 echo ========================================
 echo All services started!
 echo ========================================
-echo.
-echo Frontend: http://localhost:5173
-echo Backend:  http://localhost:5000
-echo MQTT:     localhost:1883
-echo.
-echo Press any key to open frontend in browser...
-pause >nul
-start http://localhost:5173
