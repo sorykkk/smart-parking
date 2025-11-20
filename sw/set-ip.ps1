@@ -1,13 +1,13 @@
 # Smart Parking System - IP Address Configuration Script
 # ========================================================
-# This script updates the IP address in:
+# This script updates the IP address and WiFi credentials in:
 # - Frontend .env (VITE_API_URL)
 # - Backend .env (MQTT_BROKER)
-# - Hardware env.h (BACKEND_HOST)
+# - Hardware env.h (BACKEND_HOST, WIFI_SSID, WIFI_PASS)
 # 
 # Usage:
-#   .\set-ip.ps1                    # Auto-detect local IP
-#   .\set-ip.ps1 192.168.1.105      # Set specific IP address
+#   .\set-ip.ps1                    # Auto-detect local IP and WiFi
+#   .\set-ip.ps1 192.168.1.105      # Set specific IP, auto-detect WiFi
 
 param(
     [string]$NewIP = ""
@@ -61,6 +61,39 @@ function Get-LocalIPAddress {
     }
 }
 
+# Function to get current WiFi SSID and password
+function Get-WiFiCredentials {
+    try {
+        # Get current WiFi profile name (SSID)
+        $currentProfile = (netsh wlan show interfaces | Select-String "Profile" | ForEach-Object { $_.ToString().Split(":")[1].Trim() })
+        
+        if (-not $currentProfile) {
+            Write-Warn "Not connected to WiFi - WiFi credentials will not be updated"
+            return $null
+        }
+        
+        Write-Info "Connected to WiFi: $currentProfile"
+        
+        # Get WiFi password
+        $profileInfo = netsh wlan show profile name="$currentProfile" key=clear
+        $password = ($profileInfo | Select-String "Key Content" | ForEach-Object { $_.ToString().Split(":")[1].Trim() })
+        
+        if (-not $password) {
+            Write-Warn "Could not retrieve WiFi password - WiFi credentials will not be updated"
+            return $null
+        }
+        
+        return @{
+            SSID = $currentProfile
+            Password = $password
+        }
+    }
+    catch {
+        Write-Warn "Failed to retrieve WiFi credentials: $_"
+        return $null
+    }
+}
+
 # Function to update a file with new IP
 function Update-FileIP {
     param(
@@ -108,6 +141,9 @@ if ($NewIP) {
     $IP = Get-LocalIPAddress
 }
 
+# Get WiFi credentials
+$wifiCreds = Get-WiFiCredentials
+
 Write-Info ""
 Write-Info "Applying IP address to configuration files..."
 Write-Info ""
@@ -138,18 +174,15 @@ if (Test-Path $hwEnvH) {
     
     # Update BACKEND_HOST
     $newContent = $newContent -replace '#define BACKEND_HOST\s+"[0-9.]+"', "#define BACKEND_HOST             ""$IP"""
-    Write-Success "Updated Hardware env.h (BACKEND_HOST)"
+    Write-Success "Updated Hardware env.h (BACKEND_HOST = $IP)"
     
-    # Update WIFI_SSID if provided
-    if ($WiFiSSID) {
-        $newContent = $newContent -replace '#define WIFI_SSID\s+"[^"]+"', "#define WIFI_SSID ""$WiFiSSID"""
-        Write-Success "Updated Hardware env.h (WIFI_SSID)"
-    }
-    
-    # Update WIFI_PASS if provided
-    if ($WiFiPass) {
-        $newContent = $newContent -replace '#define WIFI_PASS\s+"[^"]+"', "#define WIFI_PASS ""$WiFiPass"""
-        Write-Success "Updated Hardware env.h (WIFI_PASS)"
+    # Update WiFi credentials if detected
+    if ($wifiCreds) {
+        $newContent = $newContent -replace '#define WIFI_SSID\s+"[^"]+"', "#define WIFI_SSID ""$($wifiCreds.SSID)"""
+        Write-Success "Updated Hardware env.h (WIFI_SSID = $($wifiCreds.SSID))"
+        
+        $newContent = $newContent -replace '#define WIFI_PASS\s+"[^"]+"', "#define WIFI_PASS ""$($wifiCreds.Password)"""
+        Write-Success "Updated Hardware env.h (WIFI_PASS = ****)"
     }
     
     # Write back only if something changed
@@ -166,6 +199,9 @@ Write-Success "IP Configuration Complete!"
 Write-Success "==================================================="
 Write-Info ""
 Write-Info "IP Address: $IP"
+if ($wifiCreds) {
+    Write-Info "WiFi SSID: $($wifiCreds.SSID)"
+}
 Write-Info "Frontend API: http://$($IP):5000"
 Write-Info "MQTT Broker: $($IP):1883"
 Write-Info "Hardware Backend: $($IP):5000"
