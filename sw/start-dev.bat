@@ -10,6 +10,16 @@ if not exist "%~dp0config.env" (
     echo WARNING: config.env not found. IP configuration may not be set.
     echo Run set-ip.ps1 to configure IP addresses.
     echo.
+) else (
+    echo config.env found. Running IP configuration setup...
+    echo.
+    powershell -ExecutionPolicy Bypass -File "%~dp0set-ip.ps1"
+    if %ERRORLEVEL% NEQ 0 (
+        echo ERROR: IP configuration setup failed.
+        pause
+        exit /b 1
+    )
+    echo.
 )
 
 REM Check if mosquitto is in PATH
@@ -22,7 +32,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM Check if Python is available
-where python >nul 2>&1
+where py>nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Python not found. Please install Python 3.8+
     pause
@@ -47,14 +57,14 @@ echo [2/3] Starting Backend...
 cd findspot-backend\flask
 if not exist venv (
     echo Creating Python virtual environment...
-    python -m venv venv
+    py -m venv venv
     call venv\Scripts\activate
     echo Installing dependencies...
     pip install -r requirements.txt
 ) else (
     call venv\Scripts\activate
 )
-start "Backend - Flask" cmd /k "venv\Scripts\activate && python app.py"
+start "Backend - Flask" cmd /k "venv\Scripts\activate && py app.py"
 cd ..\..
 timeout /t 3 >nul
 
