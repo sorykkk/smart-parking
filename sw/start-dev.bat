@@ -5,22 +5,15 @@ echo FindSpot - Local Development Setup
 echo ========================================
 echo.
 
-REM Check for IP configuration
-if not exist "%~dp0config.env" (
-    echo WARNING: config.env not found. IP configuration may not be set.
-    echo Run set-ip.ps1 to configure IP addresses.
-    echo.
-) else (
-    echo config.env found. Running IP configuration setup...
-    echo.
-    powershell -ExecutionPolicy Bypass -File "%~dp0set-ip.ps1"
-    if %ERRORLEVEL% NEQ 0 (
-        echo ERROR: IP configuration setup failed.
-        pause
-        exit /b 1
-    )
-    echo.
+REM Auto-configure IP addresses
+echo Configuring IP addresses...
+powershell -ExecutionPolicy Bypass -File "%~dp0set-ip.ps1"
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: IP configuration failed.
+    pause
+    exit /b 1
 )
+echo.
 
 REM Check if mosquitto is in PATH
 where mosquitto >nul 2>&1
