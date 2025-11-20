@@ -104,7 +104,7 @@ Write-Info ""
 # 1. Update frontend .env (VITE_API_URL)
 $frontendEnv = Join-Path $scriptDir "findspot-frontend\.env"
 Update-FileIP -FilePath $frontendEnv `
-    -Pattern 'VITE_API_URL=http://[\d\.]+:5000' `
+    -Pattern 'VITE_API_URL=http://[0-9.]+:5000' `
     -Replacement "VITE_API_URL=http://$($IP):5000" `
     -Description "Frontend .env (VITE_API_URL)"
 
@@ -112,7 +112,7 @@ Update-FileIP -FilePath $frontendEnv `
 $backendEnv = Join-Path $scriptDir "findspot-backend\.env"
 if (Test-Path $backendEnv) {
     Update-FileIP -FilePath $backendEnv `
-        -Pattern 'MQTT_BROKER=[\d\.]+' `
+        -Pattern 'MQTT_BROKER=[0-9.]+' `
         -Replacement "MQTT_BROKER=$IP" `
         -Description "Backend .env (MQTT_BROKER)"
 } else {
@@ -122,10 +122,18 @@ if (Test-Path $backendEnv) {
 # 3. Update hardware env.h (BACKEND_HOST)
 $hwEnvH = Join-Path (Split-Path -Parent $scriptDir) "hw\src\env.h"
 if (Test-Path $hwEnvH) {
-    Update-FileIP -FilePath $hwEnvH `
-        -Pattern '#define BACKEND_HOST "[\d\.]+"' `
-        -Replacement "#define BACKEND_HOST `"$IP`"" `
-        -Description "Hardware env.h (BACKEND_HOST)"
+    # Use special handling for C header file with quotes
+    $content = Get-Content $hwEnvH -Raw
+    $pattern = '#define BACKEND_HOST "[0-9.]+"'
+    $replacement = "#define BACKEND_HOST ""$IP"""
+    $newContent = $content -replace $pattern, $replacement
+    
+    if ($content -ne $newContent) {
+        $newContent | Set-Content $hwEnvH -NoNewline
+        Write-Success "Updated Hardware env.h (BACKEND_HOST)"
+    } else {
+        Write-Info "  No change needed in Hardware env.h (BACKEND_HOST)"
+    }
 } else {
     Write-Warn "Hardware env.h not found - skipping BACKEND_HOST update"
 }
