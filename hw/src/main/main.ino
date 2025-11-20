@@ -65,6 +65,16 @@ void setup() {
   // Step 1: Connect to WiFi
   Serial.println("\nConnecting to WiFi...");
   wifi.connect();
+  
+  // Check if WiFi connection was successful
+  if (!wifi.isConnected()) {
+    Serial.println("WiFi connection failed!");
+    Serial.println("Restarting in 10 seconds...");
+    delay(10000);
+    ESP.restart();
+    return;
+  }
+  
   Serial.println("WiFi Connected");
   
   // Step 2: Synchronize time with NTP server
