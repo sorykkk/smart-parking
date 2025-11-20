@@ -6,8 +6,8 @@
 # - Hardware env.h (BACKEND_HOST)
 # 
 # Usage:
-#   .\set-ip.ps1                    # Apply IP from config.env
-#   .\set-ip.ps1 192.168.1.105      # Set and apply new IP address
+#   .\set-ip.ps1                    # Auto-detect local IP
+#   .\set-ip.ps1 192.168.1.105      # Set specific IP address
 
 param(
     [string]$NewIP = ""
@@ -15,7 +15,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$configFile = Join-Path $scriptDir "config.env"
 
 # Colors for output
 function Write-Success { Write-Host $args -ForegroundColor Green }
@@ -23,30 +22,43 @@ function Write-Info { Write-Host $args -ForegroundColor Cyan }
 function Write-Warn { Write-Host $args -ForegroundColor Yellow }
 function Write-Err { Write-Host $args -ForegroundColor Red }
 
-# Function to read IP from config.env
-function Get-ConfiguredIP {
-    if (-not (Test-Path $configFile)) {
-        Write-Err "Config file not found: $configFile"
+# Function to auto-detect local IP address
+function Get-LocalIPAddress {
+    try {
+        # Get all network adapters with IPv4 addresses
+        $adapters = Get-NetIPAddress -AddressFamily IPv4 | 
+                    Where-Object { 
+                        $_.IPAddress -notlike "127.*" -and 
+                        $_.IPAddress -notlike "169.254.*" -and
+                        $_.PrefixOrigin -eq "Dhcp" -or $_.PrefixOrigin -eq "Manual"
+                    } |
+                    Sort-Object -Property InterfaceIndex
+        
+        if ($adapters.Count -eq 0) {
+            Write-Err "No active network connection found"
+            exit 1
+        }
+        
+        # Prefer WiFi or Ethernet adapter
+        $preferredAdapter = $adapters | Where-Object { 
+            $if = Get-NetAdapter -InterfaceIndex $_.InterfaceIndex
+            $if.InterfaceDescription -match "Wi-Fi|Wireless|Ethernet|802.11"
+        } | Select-Object -First 1
+        
+        if ($null -eq $preferredAdapter) {
+            $preferredAdapter = $adapters | Select-Object -First 1
+        }
+        
+        $detectedIP = $preferredAdapter.IPAddress
+        $interfaceAlias = (Get-NetAdapter -InterfaceIndex $preferredAdapter.InterfaceIndex).InterfaceAlias
+        
+        Write-Info "Auto-detected IP: $detectedIP (on $interfaceAlias)"
+        return $detectedIP
+    }
+    catch {
+        Write-Err "Failed to detect local IP address: $_"
         exit 1
     }
-    
-    $content = Get-Content $configFile -Raw
-    if ($content -match 'IP_ADDRESS=(.+)') {
-        return $matches[1].Trim()
-    }
-    
-    Write-Err "IP_ADDRESS not found in config.env"
-    exit 1
-}
-
-# Function to update config.env with new IP
-function Set-ConfiguredIP {
-    param([string]$IP)
-    
-    $content = Get-Content $configFile -Raw
-    $content = $content -replace 'IP_ADDRESS=.+', "IP_ADDRESS=$IP"
-    $content | Set-Content $configFile -NoNewline
-    Write-Success "Updated config.env with IP: $IP"
 }
 
 # Function to update a file with new IP
@@ -89,12 +101,11 @@ if ($NewIP) {
         exit 1
     }
     
-    Write-Info "Setting new IP address: $NewIP"
-    Set-ConfiguredIP -IP $NewIP
+    Write-Info "Using provided IP address: $NewIP"
     $IP = $NewIP
 } else {
-    $IP = Get-ConfiguredIP
-    Write-Info "Using IP address from config.env: $IP"
+    # Auto-detect IP
+    $IP = Get-LocalIPAddress
 }
 
 Write-Info ""
