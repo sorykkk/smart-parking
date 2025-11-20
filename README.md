@@ -1,6 +1,6 @@
 # FindSpot - Smart Parking System
 
-## 🚀 Local Development Setup
+## Local Development Setup
 
 A smart parking system with ESP32 devices (optional), MQTT broker, Flask backend, and Svelte frontend - all running locally on your laptop for development and testing.
 
@@ -11,17 +11,17 @@ A smart parking system with ESP32 devices (optional), MQTT broker, Flask backend
 - **SQLite Database**: Local data storage
 - **ESP32 Firmware** (optional): Physical sensors for real parking data
 
-## ✨ Key Features
+## Key Features
 
-- 📊 **Real-time Monitoring**: Live parking updates via MQTT and WebSocket
-- 📍 **Location Tracking**: GPS coordinates for each parking location
-- 📱 **Responsive Web App**: SvelteKit application with interactive map
-- 📱 **Android App**: Capacitor-based mobile application
-- 🌐 **RESTful API**: Complete API for device and parking management
-- 🔧 **Dummy Data Support**: Test without physical hardware
-- 🏗️ **Modular Architecture**: Backend and frontend work independently
+- **Real-time Monitoring**: Live parking updates via MQTT and WebSocket
+- **Location Tracking**: GPS coordinates for each parking location
+- **Responsive Web App**: SvelteKit application with interactive map
+- **Android App**: Capacitor-based mobile application
+- **RESTful API**: Complete API for device and parking management
+- **Dummy Data Support**: Test without physical hardware
+- **Modular Architecture**: Backend and frontend work independently
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Python 3.8+** installed
@@ -95,12 +95,12 @@ npm run dev
 ```
 
 **Access your system:**
-- 🌐 **Frontend**: http://localhost:5173
-- ⚙️ **Backend API**: http://localhost:5000
-- 📡 **MQTT Broker**: localhost:1883
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5000
+- **MQTT Broker**: localhost:1883
 
 
-## 📱 Android App Development
+## Android App Development
 
 ### Build and Run Android App
 
@@ -119,7 +119,7 @@ npx cap sync android
 npx cap open android
 ```
 
-## 🔧 Management Commands
+## Management Commands
 
 ### Starting Services
 
@@ -173,47 +173,7 @@ mosquitto_pub -h localhost -p 1883 -t test -m "hello"
 mosquitto_sub -h localhost -p 1883 -t test -v
 ```
 
-## 🏗️ Project Structure
-
-```
-smart-parking/
-├── hw/                          # ESP32 Hardware (optional)
-│   └── src/                     # Arduino/C++ source code
-├── sw/                          # Software components
-│   ├── docker-compose.yml       # Local development setup
-│   ├── findspot-backend/        # Flask backend
-│   │   ├── flask/
-│   │   │   ├── app.py           # Main application
-│   │   │   ├── models.py        # Database models
-│   │   │   ├── database.py      # Database setup
-│   │   │   ├── add_dummy_data.py # Test data generator
-│   │   │   └── requirements.txt
-│   │   └── mosquitto/           # MQTT broker config
-│   │       ├── mosquitto.conf
-│   │       └── passwd           # User credentials
-│   └── findspot-frontend/       # Svelte frontend
-│       ├── src/
-│       │   ├── routes/          # SvelteKit pages
-│       │   └── lib/             # Components
-│       ├── android/             # Capacitor Android project
-│       └── nginx.conf           # Frontend server config
-└── docs/                        # Additional documentation
-```
-
-## 🔌 Hardware Integration (Optional)
-
-If you want to connect real ESP32 devices with sensors:
-
-1. Navigate to `hw/src/` directory
-2. Copy `env.example.h` to `env.h`
-3. Configure WiFi credentials and MQTT settings
-4. Upload to ESP32 using Arduino IDE
-5. Device will auto-register with the backend
-
-See hardware documentation for detailed setup instructions.
-
-
-## 🧪 Development Workflow
+## Development Workflow
 
 ### Frontend Development
 
@@ -249,7 +209,7 @@ python app.py
 
 Changes require restarting the Python process (or use Flask auto-reload).
 
-## 📖 API Documentation
+## API Documentation
 
 ### Main Endpoints
 
@@ -266,7 +226,7 @@ Changes require restarting the Python process (or use Flask auto-reload).
 
 Connect to WebSocket at `http://localhost:5000/socket.io/`
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Backend won't start
 ```powershell
@@ -336,7 +296,7 @@ npx cap sync android
 # 4. Make sure firewall allows port 5000
 ```
 
-## 📝 Notes
+## Notes
 
 - This setup is for **local development only**
 - No SSL/HTTPS configured (HTTP only)
@@ -344,11 +304,6 @@ npx cap sync android
 - MQTT broker has no encryption (for local use)
 - Frontend dev server runs on port 5173 (Vite default)
 - Backend runs on port 5000
-
-
-## 🤝 Contributing
-
-This is a local development environment setup. 
 
 ### For Testing
 - Backend: http://localhost:5000
@@ -358,8 +313,5 @@ This is a local development environment setup.
 ### Environment Files
 - Backend: `sw/findspot-backend/.env`
 - Frontend: `sw/findspot-frontend/.env`
-
-## 📄 License
-
-[Your License Here]
+- Hardware: `hw/src/env.h`
 

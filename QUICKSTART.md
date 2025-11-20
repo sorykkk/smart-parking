@@ -1,6 +1,6 @@
 # Quick Start Guide - Local Development
 
-## 🚀 Get Running in 5 Minutes
+## Get Running in 5 Minutes
 
 This guide gets you up and running with FindSpot locally on your laptop without Docker.
 
@@ -104,7 +104,7 @@ Open your browser:
 You should see a map with parking locations in Timisoara!
 
 
-## 🎉 That's It!
+## That's It!
 
 ### What's Running?
 
@@ -124,7 +124,7 @@ Run the commands again in separate terminals:
 - Backend: `python app.py`
 - Frontend: `npm run dev`
 
-## 📱 Build Android App
+## Build Android App
 
 ```powershell
 cd sw\findspot-frontend
@@ -141,7 +141,7 @@ npx cap sync android
 npx cap open android
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Port already in use"
 ```powershell
@@ -183,7 +183,7 @@ rm -r node_modules
 npm install
 ```
 
-## � Development Workflow
+## Development Workflow
 
 ### Backend Changes
 - Edit files in `sw\findspot-backend\flask\`
@@ -203,7 +203,7 @@ sqlite3 data\findspot.db
 # .exit
 ```
 
-## 📚 More Information
+## More Information
 
 See the main [README.md](README.md) for:
 - Detailed architecture
