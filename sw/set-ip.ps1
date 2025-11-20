@@ -20,13 +20,13 @@ $configFile = Join-Path $scriptDir "config.env"
 # Colors for output
 function Write-Success { Write-Host $args -ForegroundColor Green }
 function Write-Info { Write-Host $args -ForegroundColor Cyan }
-function Write-Warning { Write-Host $args -ForegroundColor Yellow }
-function Write-Error { Write-Host $args -ForegroundColor Red }
+function Write-Warn { Write-Host $args -ForegroundColor Yellow }
+function Write-Err { Write-Host $args -ForegroundColor Red }
 
 # Function to read IP from config.env
 function Get-ConfiguredIP {
     if (-not (Test-Path $configFile)) {
-        Write-Error "Config file not found: $configFile"
+        Write-Err "Config file not found: $configFile"
         exit 1
     }
     
@@ -35,7 +35,7 @@ function Get-ConfiguredIP {
         return $matches[1].Trim()
     }
     
-    Write-Error "IP_ADDRESS not found in config.env"
+    Write-Err "IP_ADDRESS not found in config.env"
     exit 1
 }
 
@@ -59,7 +59,7 @@ function Update-FileIP {
     )
     
     if (-not (Test-Path $FilePath)) {
-        Write-Warning "Skipping $Description - File not found: $FilePath"
+        Write-Warn "Skipping $Description - File not found: $FilePath"
         return
     }
     
@@ -84,7 +84,7 @@ Write-Info ""
 if ($NewIP) {
     # Validate IP format (basic check)
     if ($NewIP -notmatch '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
-        Write-Error "Invalid IP address format: $NewIP"
+        Write-Err "Invalid IP address format: $NewIP"
         Write-Info "Expected format: xxx.xxx.xxx.xxx"
         exit 1
     }
@@ -116,7 +116,7 @@ if (Test-Path $backendEnv) {
         -Replacement "MQTT_BROKER=$IP" `
         -Description "Backend .env (MQTT_BROKER)"
 } else {
-    Write-Warning "Backend .env not found - skipping MQTT_BROKER update"
+    Write-Warn "Backend .env not found - skipping MQTT_BROKER update"
 }
 
 # 3. Update hardware env.h (BACKEND_HOST)
@@ -127,7 +127,7 @@ if (Test-Path $hwEnvH) {
         -Replacement "#define BACKEND_HOST `"$IP`"" `
         -Description "Hardware env.h (BACKEND_HOST)"
 } else {
-    Write-Warning "Hardware env.h not found - skipping BACKEND_HOST update"
+    Write-Warn "Hardware env.h not found - skipping BACKEND_HOST update"
 }
 
 Write-Info ""
