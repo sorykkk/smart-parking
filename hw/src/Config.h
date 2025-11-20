@@ -1,13 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// ==================== WiFi Configuration ============================ //
-// Include for WIFI_SSID and WIFI_PASS
+// ==================== WiFi & Backend HTTP Configuration =============== //
+// Include for WIFI_SSID, WIFI_PASS, and server settings for device registration
 #include "env.h"
-
-// ==================== Backend HTTP Configuration ============================ //
-// Backend server settings for device registration
-
 #define BACKEND_REGISTER_URL     "api/device/register"
 
 // ==================== Device Configuration ============================ //
@@ -25,7 +21,7 @@
 #define SENSOR_READ_INTERVAL 1000  // Read sensors every 10 seconds (in milliseconds)
 
 // ==================== Camera Configuration ============================ //
-// TODO: Camera module will be added in future iterations
+// TODO: Camera module will be added in future 
 // #define CAMERA_QUALITY 10  // 0-63 lower means higher quality
 
 #endif

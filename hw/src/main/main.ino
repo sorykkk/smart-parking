@@ -6,7 +6,6 @@
 #include "../Config.h"
 #include "../WiFiManager.h"
 #include "../DistanceSensor.h"
-#include "../CameraDevice.h"
 #include "../MQTTClient.h"
 #include "../HttpClient.h"
 #include "time.h"
@@ -32,7 +31,6 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 7200;      // GMT+2
 const int   daylightOffset_sec = 3600; // Daylight saving
 
-// ==================== MQTT Callback ============================ //
 /**
  * MQTT callback for incoming messages (optional - for future features)
  */
@@ -42,8 +40,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   
-  Serial.println("📨 MQTT Message on topic: " + String(topic));
-  Serial.println("📦 Payload: " + message);
+  Serial.println("MQTT Message on topic: " + String(topic));
+  Serial.println("Payload: " + message);
 }
 
 // ==================== Setup ============================ //
@@ -157,7 +155,6 @@ void setup() {
   int sensor_id = 0;
   
   // Setup ultrasonic sensors (each represents a parking spot)
-  // Format: DistanceSensor(device, technology, index, trigger_pin, echo_pin)
   sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 22, 23));
   sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 14, 12));
   sensors.push_back(new DistanceSensor(esp32device, "ultrasonic", sensor_id++, 33, 32));
@@ -186,9 +183,9 @@ void setup() {
       String payload = sensors[i]->toJson();
       if (payload.length() > 0) {
         if (mqttClient.publishSensorData(i, payload)) {
-          Serial.println(" ✓ Published initial state");
+          Serial.println("Published initial state");
         } else {
-          Serial.println(" ✗ Failed to publish");
+          Serial.println("Failed to publish");
         }
         delay(200); // Small delay between sensor publishes
       }
@@ -212,7 +209,7 @@ void loop() {
   
   // Check if device is registered
   if (esp32device.getId() <= 0) {
-    Serial.println("Device not registered, waiting...");
+    Serial.println("X Device not registered, waiting...");
     delay(1000);
     return;
   }
@@ -224,13 +221,12 @@ void loop() {
     lastSensorRead = currentMillis;
     
     Serial.println("\nReading sensors...");
-    Serial.print("Free heap: ");
     Serial.println(ESP.getFreeHeap());
     yield(); // Allow background tasks
     
     // Ensure MQTT is connected before reading sensors
     if (!mqttClient.isConnected()) {
-      Serial.println("MQTT not connected, skipping sensor read");
+      Serial.println("X MQTT not connected, skipping sensor read");
       return;
     }
     
@@ -283,12 +279,12 @@ void loop() {
           
           if (mqttClient.publishSensorData(i, payload)) {
             sensorStateVector[i] = currentState;
-            Serial.println(" ✓ Published");
+            Serial.println("  Published");
           } else {
-            Serial.println(" ✗ Failed");
+            Serial.println("  Failed");
           }
         } else {
-          Serial.println(" ✗ No payload or disconnected");
+          Serial.println(" X No payload or disconnected");
         }
         
         // Force free the payload string

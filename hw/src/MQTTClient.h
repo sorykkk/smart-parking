@@ -115,7 +115,7 @@ public:
    */
   bool publishSensorData(int sensorIndex, const String& sensorJson) {
     if (!mqttClient.connected()) {
-      Serial.println("❌ MQTT not connected, cannot publish");
+      Serial.println("X MQTT not connected, cannot publish");
       Serial.print("   MQTT state: ");
       Serial.println(mqttClient.state());
       return false;
@@ -123,19 +123,19 @@ public:
     
     // Validate payload
     if (sensorJson.length() == 0) {
-      Serial.println("❌ Empty payload, cannot publish");
+      Serial.println("X Empty payload, cannot publish");
       return false;
     }
     
     if (sensorJson.length() > 2048) {
-      Serial.println("❌ Payload too large, cannot publish");
+      Serial.println("X Payload too large, cannot publish");
       return false;
     }
     
     // Build topic: device/{device_id}/sensors/{sensor_index}
     String topic = "device/" + String(deviceId) + "/sensors/" + String(sensorIndex);
     
-    Serial.println("📤 Publishing to MQTT:");
+    Serial.println("Publishing to MQTT:");
     Serial.println("   Topic: " + topic);
     Serial.println("   Payload: " + sensorJson);
     
@@ -146,11 +146,11 @@ public:
     bool result = mqttClient.publish(topicCStr, payloadCStr);
     
     if (!result) {
-      Serial.print("❌ Publish failed (rc=");
+      Serial.print("X Publish failed (rc=");
       Serial.print(mqttClient.state());
       Serial.println(")");
     } else {
-      Serial.println("✓ MQTT publish successful");
+      Serial.println("MQTT publish successful!");
     }
     
     return result;

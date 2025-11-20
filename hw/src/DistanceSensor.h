@@ -26,7 +26,6 @@ public:
       type = "distance";
       technology = sensorTech;
       index = sensorIndex;
-      // Device is already registered at this point, so device.getId() is valid
       // Format: ultrasonic_0_esp32_dev_1 (includes device ID)
       name = technology + "_" + String(index) + "_" + device.getName() + "_" + String(device.getId());
       
@@ -125,18 +124,6 @@ public:
     }
     
     return payload;
-  }
-
-  void toJsonObject(JsonObject& obj) const override {
-    obj["name"] = name;
-    obj["index"] = index;
-    obj["type"] = type;
-    obj["technology"] = technology;
-    obj["trigger_pin"] = trigPin;
-    obj["echo_pin"] = echoPin;
-    obj["is_occupied"] = occupied;
-    obj["current_distance"] = lastDistance;
-    obj["last_updated"] = isoTime;
   }
 };
 }

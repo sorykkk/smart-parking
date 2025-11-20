@@ -163,7 +163,7 @@ def add_dummy_data():
             print(f"Added device: {device_data['name']} with {len(device_data['spots'])} parking spots")
         
         db.session.commit()
-        print("\n✅ Dummy data added successfully!")
+        print("\nDummy data added successfully!")
         
         # Print summary
         total_devices = Device.query.count()
@@ -171,13 +171,13 @@ def add_dummy_data():
         available_spots = DistanceSensor.query.filter_by(is_occupied=False).count()
         occupied_spots = DistanceSensor.query.filter_by(is_occupied=True).count()
         
-        print(f"\n📊 Database Summary:")
+        print(f"\nDatabase Summary:")
         print(f"   Devices: {total_devices}")
         print(f"   Total Spots: {total_sensors}")
         print(f"   Available Spots: {available_spots}")
         print(f"   Occupied Spots: {occupied_spots}")
         
-        print(f"\n🗺️  Test Locations in Cluj-Napoca:")
+        print(f"\nTest Locations in Cluj-Napoca:")
         for device in Device.query.all():
             available = DistanceSensor.query.filter_by(device_id=device.id, is_occupied=False).count()
             total = DistanceSensor.query.filter_by(device_id=device.id).count()
@@ -187,5 +187,5 @@ if __name__ == '__main__':
     try:
         add_dummy_data()
     except Exception as e:
-        print(f"❌ Error adding dummy data: {e}")
+        print(f"X Error adding dummy data: {e}")
         sys.exit(1)
