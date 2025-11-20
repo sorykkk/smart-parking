@@ -13,7 +13,7 @@
 using namespace FindSpot;
 
 // Watchdog timeout in seconds (increased to prevent premature resets)
-#define WDT_TIMEOUT 30
+#define WDT_TIMEOUT 60
 
 // ==================== Global Objects ============================ //
 WiFiManager wifi;
