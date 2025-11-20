@@ -45,7 +45,7 @@ def remove_dummy_data():
         dummy_devices = Device.query.filter(Device.mac_address.in_(dummy_macs)).all()
         
         if not dummy_devices:
-            print("✓ No dummy data found in database")
+            print("No dummy data found in database")
             return
         
         print(f"Found {len(dummy_devices)} dummy devices:")
@@ -60,7 +60,7 @@ def remove_dummy_data():
             db.session.delete(device)
         
         db.session.commit()
-        print(f"✓ Removed {len(dummy_devices)} dummy devices and their associated sensors/cameras")
+        print(f"Removed {len(dummy_devices)} dummy devices and their associated sensors/cameras")
         
         # Show remaining devices
         remaining_devices = Device.query.all()

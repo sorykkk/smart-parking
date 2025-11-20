@@ -1,3 +1,4 @@
+//TODO: update the lib logic according to new mqtt and http comunication protocol
 #ifndef CAMERA_DEVICE_H
 #define CAMERA_DEVICE_H
 
@@ -121,18 +122,6 @@ public:
     serializeJson(*doc, payload);
     delete doc;
     return payload;
-  }
-
-  void toJsonObject(JsonObject& obj) const override {
-    obj["name"] = name;
-    obj["index"] = index;
-    obj["type"] = type;
-    obj["technology"] = technology;
-    obj["resolution"] = frameSizeToString(frameSize);
-    obj["jpeg_quality"] = jpegQuality;
-    obj["image_size"] = lastImageSize;
-    obj["image_base64"] = lastImageBase64;
-    obj["last_updated"] = isoTime;
   }
 
 private:

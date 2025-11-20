@@ -31,7 +31,6 @@
 	
 	async function getUserLocation() {
 		try {
-			console.log('Requesting user location...');
 			const position = await Geolocation.getCurrentPosition({
 				enableHighAccuracy: true,
 				timeout: 10000,
@@ -63,7 +62,6 @@
 			
 			// Default to Timisoara if location not available
 			userLocation = { lat: 45.7489, lon: 21.2087 };
-			console.log('Using default location (Timisoara):', userLocation);
 		}
 	}
 	
@@ -73,23 +71,10 @@
 			// Always fetch all locations first to show in database
 			let url = `${API_URL}/api/parking/status`;
 			
-			console.log(`Attempting to fetch from: ${url} (attempt ${retryCount + 1})`);
-			
 			const response = await fetch(url);
 			if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			
 			const data = await response.json();
-			
-			// Log detailed data for debugging
-			console.log('Raw API response:', data);
-			data.forEach((device: any) => {
-				console.log(`  Device ${device.id} (${device.name}):`, {
-					total_spots: device.total_spots,
-					available_spots: device.available_spots,
-					status: device.status,
-					sensors: device.sensors?.length || 0
-				});
-			});
 			
 			// Transform the data to match frontend expectations
 			locations = data.map((device: any) => ({
@@ -107,16 +92,11 @@
 				location.latitude && location.longitude
 			);
 			
-			console.log('Successfully loaded locations:', locations.length);
-			console.log('Transformed locations:', locations.map(l => `${l.name}: ${l.available_spots}/${l.total_spots} (${l.status})`));
 			error = null;
 		} catch (err) {
-			console.error('Error fetching locations:', err);
-			
 			// Auto-retry on first load (up to 3 times with increasing delays)
 			if (retryCount < 3) {
 				const delay = (retryCount + 1) * 1000; // 1s, 2s, 3s delays
-				console.log(`Retrying in ${delay}ms...`);
 				setTimeout(() => fetchLocations(retryCount + 1), delay);
 				return;
 			}
@@ -140,20 +120,6 @@
 		});
 		
 		socket.on('parking_update', (data: any[]) => {
-			console.log('📡 Received parking update:', data);
-			
-			// Log detailed data for debugging
-			data.forEach(device => {
-				console.log(`  Device ${device.id} (${device.name}):`, {
-					total_spots: device.total_spots,
-					available_spots: device.available_spots,
-					status: device.status,
-					sensors: device.sensors?.length || 0,
-					latitude: device.latitude,
-					longitude: device.longitude
-				});
-			});
-			
 			// Transform backend data to frontend format
 			locations = data.map((device: any) => ({
 				id: device.id,
@@ -168,37 +134,31 @@
 			})).filter((location: ParkingLocation) => 
 				location.latitude && location.longitude
 			);
-			console.log(`✓ Updated ${locations.length} locations:`, locations.map(l => `${l.name}: ${l.available_spots}/${l.total_spots} (${l.status})`));
 		});
 		
 		// Handle new device registration
 		socket.on('device_registered', (data: any) => {
-			console.log('New device registered:', data);
 			// Refresh locations to show new device
 			fetchLocations();
 		});
 		
 		// Handle sensor registration
 		socket.on('sensor_registered', (data: any) => {
-			console.log('New sensor registered:', data);
-			// The backend will send a parking_update event, no need to fetch
+			// The backend will send a parking_update event
 		});
 		
 		// Handle real-time sensor updates
 		socket.on('sensor_update', (data: any) => {
-			console.log('Sensor update:', data);
-			// The backend will send a parking_update event, no need to fetch
+			// The backend will send a parking_update event
 		});
 		
 		// Handle device status updates
 		socket.on('device_update', (data: any) => {
-			console.log('Device status update:', data);
 			// Update device status in the locations array
 			const locationIndex = locations.findIndex(loc => loc.id === data.device_id);
 			if (locationIndex !== -1) {
 				locations[locationIndex].status = data.status;
 				locations = [...locations]; // Trigger reactivity
-				console.log(`Updated device ${data.device_id} status to ${data.status}`);
 			}
 		});
 		
@@ -212,8 +172,6 @@
 	}
 	
 	onMount(async () => {
-		console.log('Page mounted, initializing...');
-		
 		// Small delay to ensure page is fully loaded
 		await new Promise(resolve => setTimeout(resolve, 100));
 		

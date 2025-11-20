@@ -61,10 +61,14 @@ public:
     
     // Send HTTP POST request with timeout
     http.begin(url);
-    http.setTimeout(10000); // 10 second timeout
+    http.setTimeout(5000); // 5 second timeout to prevent watchdog issues
     http.addHeader("Content-Type", "application/json");
     
     Serial.println("Sending POST request...");
+    
+    // Reset watchdog BEFORE the blocking HTTP call
+    esp_task_wdt_reset();
+    
     int httpCode = http.POST(json);
     
     // Reset watchdog after HTTP request

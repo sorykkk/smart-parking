@@ -61,7 +61,7 @@
 			map.on('dragstart', () => {
 				if (autoFollowUser) {
 					userDraggedMap = true;
-					console.log('🖱️ User dragged map - pausing auto-follow');
+					console.log('User dragged map - pausing auto-follow');
 				}
 			});
 			
@@ -166,7 +166,7 @@
 								onmouseover="this.style.background='#1d4ed8'"
 								onmouseout="this.style.background='#2563eb'"
 							>
-								🧭 Navigate Here
+								Navigate Here
 							</button>
 						</div>
 					`;
@@ -215,7 +215,7 @@
 								onmouseover="this.style.background='#1d4ed8'"
 								onmouseout="this.style.background='#2563eb'"
 							>
-								🧭 Navigate Here
+								Navigate Here
 							</button>
 						</div>
 					`);
@@ -272,7 +272,7 @@
 		// Re-enable auto-follow if we're in drive mode
 		if (showRoute) {
 			userDraggedMap = false;
-			console.log('🎯 Re-enabled auto-follow mode');
+			console.log('Re-enabled auto-follow mode');
 		}
 		
 		map.setView([userLocation.lat, userLocation.lon], zoomLevel, {
@@ -293,7 +293,7 @@
 		autoFollowUser = true;
 		userDraggedMap = false;
 		
-		console.log('🚗 Starting auto-follow mode');
+		console.log('Starting auto-follow mode');
 
 		// Start watching location with high accuracy
 		watchId = navigator.geolocation.watchPosition(
@@ -334,7 +334,7 @@
 		
 		autoFollowUser = false;
 		userDraggedMap = false;
-		console.log('🛑 Auto-follow mode stopped');
+		console.log('Auto-follow mode stopped');
 	}
 
 	async function showRouteToLocation(location: any) {
@@ -377,7 +377,7 @@
 						smoothFactor: 1
 					}).addTo(map);
 					
-					console.log('✅ Real road route loaded successfully with', leafletCoords.length, 'points');
+					console.log('Real road route loaded successfully with', leafletCoords.length, 'points');
 					
 					// Show route distance and duration
 					const distance = (data.routes[0].distance / 1000).toFixed(1); // km
@@ -387,7 +387,7 @@
 					// Center map on user location for driving view
 					if (userLocation) {
 						map.setView([userLocation.lat, userLocation.lon], 18); // Zoom level 18 for driving
-						console.log('🎯 Map centered on user location for navigation');
+						console.log('Map centered on user location for navigation');
 					}
 					
 					// Start auto-follow mode for navigation
@@ -400,8 +400,8 @@
 				throw new Error(`Routing service error: ${response.status}`);
 			}
 		} catch (error) {
-			console.error('❌ Routing failed:', error);
-			console.log('🔄 Using fallback straight-line route');
+			console.error('X Routing failed:', error);
+			console.log('Using fallback straight-line route');
 			
 			// Fallback to straight line if routing service fails
 			const routeCoords = [
@@ -419,7 +419,7 @@
 			// Even with fallback, center on user location
 			if (userLocation) {
 				map.setView([userLocation.lat, userLocation.lon], 16);
-				console.log('🎯 Map centered on user location (fallback route)');
+				console.log('Map centered on user location (fallback route)');
 			}
 			
 			// Start auto-follow mode for navigation
@@ -445,7 +445,7 @@
 		// Reset map view to user location with moderate zoom
 		if (userLocation && map) {
 			map.setView([userLocation.lat, userLocation.lon], 13);
-			console.log('🗺️ Map reset to overview mode');
+			console.log('Map reset to overview mode');
 		}
 	}
 
