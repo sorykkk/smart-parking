@@ -796,6 +796,12 @@ if __name__ == '__main__':
     # Initialize database
     with app.app_context():
         init_db()
+        
+        # Populate database with dummy data if empty
+        if Device.query.count() == 0:
+            print("Database is empty. Adding dummy data...")
+            from data.add_dummy_data import add_dummy_data
+            add_dummy_data()
     
     # Initialize MQTT client
     init_mqtt()
