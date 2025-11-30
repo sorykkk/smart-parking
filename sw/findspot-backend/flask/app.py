@@ -789,7 +789,6 @@ def get_camera_image(device_id, camera_index):
     })
 
 
-from data.add_dummy_data import add_dummy_data
 if __name__ == '__main__':
     # Create data directory if it doesn't exist
     os.makedirs('data', exist_ok=True)
@@ -800,6 +799,7 @@ if __name__ == '__main__':
         
         # Populate database with dummy data if empty
         if Device.query.count() == 0:
+            from data.add_dummy_data import add_dummy_data
             print("Database is empty. Adding dummy data...")
             add_dummy_data()
     
